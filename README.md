@@ -7,7 +7,9 @@ served by GitHub Pages at https://bryllelagunda.github.io/pse-screener-dashboard
 viewing only, so results stay in the private repository. The page reads them with a
 fine-grained GitHub token kept in your browser's `localStorage`, or from a CSV you open with
 **Load CSV**. Never commit a `.csv`, `.json` data file or token here; `tests/static.mjs` fails CI if
-you do.
+you do. It also allows only these files to be committed: `index.html`, `README.md`, `CLAUDE.md`,
+`.gitignore`, `docs/wireframe.png`, `tests/*.mjs` and `.github/workflows/*.yml`. Any other file,
+or results-shaped CSV text inside an allowed one, fails the check.
 
 ## First open on a device
 
@@ -21,15 +23,19 @@ Offline: press **Load CSV** and pick `pse-screener/results/latest.csv`. No key n
 ## Checks
 
 ```bash
-node tests/static.mjs                                  # size, CSP, no innerHTML, no data or tokens (CI runs this)
+node tests/static.mjs                                  # size, exact CSP, no innerHTML, file allowlist, no data or tokens (CI runs this)
 node tests/parity.mjs ../pse-screener ../pse-screener/results/latest.csv
 ```
 
 `parity.mjs` reads the private repository's `tests/fixtures/filter_cases.json` and any results
 CSVs you pass, and fails if the browser's filter logic (between `FILTER-START` and `FILTER-END`
 in `index.html`) disagrees with `pse_screener.evaluate` on a pass/fail verdict or reason text.
-Change the two together. The page runs the same check on every load against the CSV's own
-`pass_strict` and `pass_loose` columns, and shows a red warning if they disagree.
+It also runs the private repository's Python `evaluate` directly over 81 slider settings (using
+`../pse-screener/.venv/bin/python` when present, otherwise `python3`) and checks how **Load CSV**
+parses edge-case files (BOM, quoted commas and newlines, short rows, CRLF/LF/CR line endings).
+Change the filter block and `evaluate` together. The page runs the same check on every load
+against the CSV's own `pass_strict` and `pass_loose` columns, and shows a red warning if they
+disagree.
 
 Design: `pse-screener/docs/design.md`, sections "How the dashboard reads private data" and
 "Dashboard". Wireframe: `docs/wireframe.png`.
