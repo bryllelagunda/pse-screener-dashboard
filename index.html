@@ -14,6 +14,7 @@ html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
 a{color:var(--accent)}
 button,input,select{font:inherit;color:inherit}
+input,select{font-size:16px}
 button,select,.btn{min-height:44px;padding:0 14px;background:var(--panel);border:1px solid var(--line);border-radius:8px;cursor:pointer}
 button:hover,select:hover{border-color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -254,6 +255,7 @@ const price = x => x === null ? "—" : x.toLocaleString("en-US", {minimumFracti
 const pct = (x, d = 1) => x === null ? "—" : x.toFixed(d) + "%";
 const spct = (x, d = 1) => x === null ? "—" : sign(x, d) + "%";
 function dateLabel(iso, withYear) {
+  if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return String(iso || "unknown date");
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US",
     {weekday: "short", month: "short", day: "numeric", year: withYear ? "numeric" : undefined, timeZone: "UTC"});
@@ -270,7 +272,7 @@ const S = {
   index: [], status: null, holidays: new Set(),
   cmpRows: null, cmpDate: null,
   preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", open: new Set(),
-  parity: 0, fixtureBad: 0, authErr: false, msg: null,
+  parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null,
 };
 
 // ------------------------------------------------------------------ settings and URL
@@ -311,10 +313,11 @@ function settingsFromURL() {
     const set = {...STRICT};
     for (const k in URLK) {
       const v = p.get(URLK[k]);
-      if (v === null) continue;
+      if (v === null || v.trim() === "") continue; // a bad or empty value keeps the default, never 0
+      const num = x => x.trim() !== "" && Number.isFinite(+x) && (k === "roc9_min" || +x >= 0);
       if (typeof set[k] === "boolean") set[k] = v === "1";
-      else if (Array.isArray(set[k])) { const b = v.split("_").map(Number); if (b.length === 2 && b.every(Number.isFinite)) set[k] = b; }
-      else if (Number.isFinite(+v)) set[k] = +v;
+      else if (Array.isArray(set[k])) { const b = v.split("_"); if (b.length === 2 && b.every(num) && +b[0] <= +b[1]) set[k] = b.map(Number); }
+      else if (num(v)) set[k] = +v;
     }
     return {preset: "custom", set};
   }
@@ -527,7 +530,8 @@ function bar(cls, ...kids) { $("bars").append(el("div", {cls: "bar fade " + cls,
 function renderBars() {
   $("bars").textContent = "";
   if (S.authErr) bar("err", "Key expired or wrong: paste a new one with access to " + REPO + ". ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
-  if (S.parity) bar("err", "Dashboard logic disagrees with screener for " + S.parity + " stock" + (S.parity === 1 ? "" : "s") + ". Trust the screener's own pass lists until this is fixed.");
+  if (S.refreshErr) bar("", "Couldn't refresh from GitHub (" + S.refreshErr + "). Showing the results saved " + (S.updated ? new Date(S.updated).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "earlier") + ". Reload to try again.");
+  if (S.parity) bar("err", "Dashboard logic disagrees with screener for " + S.parity + " stock" + (S.parity === 1 ? "" : "s") + ". If this file was made before a filter change, re-run the screener; otherwise trust its own pass lists until this is fixed.");
   if (S.fixtureBad) bar("err", "Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing). Trust the screener's own pass lists until this is fixed.");
   const st = S.status;
   if (st && !S.source) {
@@ -549,7 +553,7 @@ function missedSchedule(st) {
 function renderCompare() {
   const sel = $("cmp"); sel.textContent = "";
   sel.append(el("option", {value: "", text: "Compare with…"}));
-  for (const e of S.index) if (e.date !== S.date) sel.append(el("option", {value: e.date, text: dateLabel(e.date, true) + (e.final ? "" : " (provisional)")}));
+  for (const e of S.index) if (cmpOk(e.date)) sel.append(el("option", {value: e.date, text: dateLabel(e.date, true) + (e.final ? "" : " (provisional)")}));
   sel.append(el("option", {value: "@file", text: "A CSV file…"}));
   if (S.cmpRows) {
     if (![...sel.options].some(o => o.value === S.cmpDate)) sel.append(el("option", {value: S.cmpDate, text: dateLabel(S.cmpDate, true) + " (file)"}));
@@ -561,17 +565,21 @@ function renderAll() { renderHeader(); renderBars(); renderCompare(); if (S.rows
 
 // ------------------------------------------------------------------ data
 class AuthError extends Error {}
+let gen = 0; // bumped when the key or the shown file changes, so a slower older load can't overwrite it
 async function gh(path, opts = {}) {
   const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body,
     headers: {Authorization: "Bearer " + S.key, Accept: opts.json ? "application/vnd.github+json" : "application/vnd.github.raw+json"}});
+  if (r.status === 403 && (r.headers.get("x-ratelimit-remaining") === "0" || r.headers.get("retry-after")))
+    throw new Error("GitHub rate limit reached; try again in a few minutes");
   if (r.status === 401 || r.status === 403) throw new AuthError();
   return r;
 }
 const fileText = async (path) => { const r = await gh("/contents/" + path); if (r.status === 404) return null; if (!r.ok) throw new Error(path + ": HTTP " + r.status); return r.text(); };
-function setCurrent(csv, date, meta) {
+const csvDate = rows => (rows.find(r => r.data_date) || {}).data_date || null;
+function setCurrent(csv) {
   S.rows = parseCSV(csv);
-  S.date = date || (S.rows.find(r => r.data_date) || {}).data_date || "unknown";
-  S.meta = meta || null;
+  S.date = csvDate(S.rows) || "unknown";
+  S.meta = S.index.find(e => e.date === S.date) || null;
   S.parity = 0;
   for (const r of S.rows) for (const p in PRESETS)
     if (r["pass_" + p] !== null && !evaluate(r, PRESETS[p], S.date).length !== r["pass_" + p]) { S.parity++; break; }
@@ -579,43 +587,47 @@ function setCurrent(csv, date, meta) {
 function setCompare(csv, date) {
   if (!csv) { S.cmpRows = null; S.cmpDate = null; return; }
   S.cmpRows = parseCSV(csv);
-  S.cmpDate = date || (S.cmpRows.find(r => r.data_date) || {}).data_date;
+  S.cmpDate = date || csvDate(S.cmpRows) || "unknown";
 }
+const cmpOk = d => d && d !== "unknown" && S.date && d < S.date; // compare only with an earlier session
 function defaultCompare() {
-  const i = S.index.findIndex(e => e.date === S.date);
-  const prev = S.index.slice(i + 1).find(e => e.final);
+  const prev = S.index.find(e => e.final && cmpOk(e.date));
   return prev ? prev.date : null;
 }
 async function loadRemote() {
   if (!S.key) return;
+  const my = ++gen;
   try {
     const [csv, idx, st, hol] = await Promise.all(["latest.csv", "index.json", "status.json"].map(f => fileText("results/" + f)).concat(fileText("data/holidays.csv")));
-    S.authErr = false;
+    if (my !== gen || S.source) return;
+    S.authErr = false; S.refreshErr = null;
     S.index = idx ? JSON.parse(idx) : [];
     S.status = st ? JSON.parse(st) : null;
     S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
     if (!csv && !idx && !hol) { S.authErr = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; renderAll(); return; } // a key without access to the repo gets 404s
     if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; renderAll(); return; }
-    const date = S.index.length ? S.index[0].date : null;
-    setCurrent(csv, date, S.index[0]);
-    S.source = ""; S.updated = Date.now(); S.cached = false; S.msg = null;
-    const cd = S.cmpDate && S.cmpDate !== S.date && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
+    setCurrent(csv);
+    S.updated = Date.now(); S.cached = false; S.msg = null;
+    const cd = cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
     const ccsv = cd ? await fileText("results/" + cd + ".csv") : null;
+    if (my !== gen || S.source) return;
     setCompare(ccsv, cd);
     store.set("cache", {csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
     renderAll();
-    checkFixture();
+    checkFixture(my);
   } catch (e) {
+    if (my !== gen) return;
     if (e instanceof AuthError) S.authErr = true;
-    else S.msg = S.rows ? null : "Couldn't reach GitHub (" + e.message + "). Check your connection and reload.";
+    else if (S.rows) S.refreshErr = e.message;
+    else S.msg = "Couldn't reach GitHub (" + e.message + "). Check your connection and reload.";
     S.cached = false;
     renderAll();
   }
 }
-async function checkFixture() {
+async function checkFixture(my) {
   try {
     const t = await fileText("tests/fixtures/filter_cases.json");
-    if (!t) return;
+    if (!t || my !== gen) return;
     const spec = JSON.parse(t), sets = {...PRESETS, custom: spec.custom};
     S.fixtureBad = spec.cases.filter(c => {
       const why = evaluate(c.row, sets[c.preset], spec.data_date);
@@ -626,10 +638,10 @@ async function checkFixture() {
 }
 function loadCache() {
   const c = store.get("cache", null);
-  if (!c || !S.key) return;
-  S.index = c.index || []; S.status = c.status; S.holidays = new Set(c.holidays || []);
-  setCurrent(c.csv, S.index.length ? S.index[0].date : null, S.index[0]);
-  if (c.cmp) setCompare(c.cmp.csv, c.cmp.date);
+  if (!c || !S.key || typeof c.csv !== "string") return;
+  S.index = Array.isArray(c.index) ? c.index : []; S.status = c.status || null; S.holidays = new Set(c.holidays || []);
+  setCurrent(c.csv);
+  if (c.cmp && cmpOk(c.cmp.date)) setCompare(c.cmp.csv, c.cmp.date);
   S.updated = c.at; S.cached = true;
 }
 function readFile(input) {
@@ -639,7 +651,7 @@ function readFile(input) {
     input.value = "";
   });
 }
-const looksLikeResults = t => /^﻿?symbol,name,data_date,/.test(t);
+const looksLikeResults = t => /^﻿?symbol,name,data_date,/.test(t) && !!csvDate(parseCSV(t));
 
 // ------------------------------------------------------------------ run now
 let running = false;
@@ -648,37 +660,46 @@ async function runNow() {
   if (!S.key) { showKey(true); return; }
   running = true; $("run").disabled = true;
   const st = t => { $("runst").textContent = ""; $("runst").append(...[].concat(t)); };
+  const link = (u, t) => el("a", {href: safeUrl(u), target: "_blank", rel: "noopener noreferrer", text: t});
+  const sleep = ms => new Promise(f => setTimeout(f, ms));
+  const RUNS = "/actions/workflows/screen.yml/runs?event=workflow_dispatch&per_page=10";
+  const runIds = async () => { const q = await gh(RUNS, {json: true}); if (!q.ok) throw new Error("runs HTTP " + q.status); return ((await q.json()).workflow_runs || []).map(x => x.id); };
+  let id = null;
   try {
     st("Starting…");
-    const T = Date.now();
+    // Remember the runs that already exist, so the new one is found by ID, not by the device clock.
+    const before = new Set(await runIds());
     const r = await gh("/actions/workflows/screen.yml/dispatches", {method: "POST", json: true, body: JSON.stringify({ref: "main"})});
-    if (!r.ok && r.status !== 204) throw new Error("dispatch HTTP " + r.status);
-    let id = null;
-    if (r.status === 200) { try { const j = await r.json(); id = j.workflow_run_id || j.id || null; } catch { /* no body */ } }
-    const since = new Date(T - 5000).toISOString().replace(/\.\d+Z$/, "Z");
-    const sleep = ms => new Promise(f => setTimeout(f, ms));
+    if (!r.ok) throw new Error("dispatch HTTP " + r.status);
+    if (r.status === 200) { try { const j = await r.json(); id = j.workflow_run_id || null; } catch { /* no body */ } }
+    const T = Date.now();
     while (!id && Date.now() - T < 120e3) {
       await sleep(5000);
-      const q = await gh("/actions/workflows/screen.yml/runs?event=workflow_dispatch&per_page=5&created=" + encodeURIComponent(">=" + since), {json: true});
-      if (q.ok) { const j = await q.json(); if (j.workflow_runs && j.workflow_runs.length) id = j.workflow_runs[j.workflow_runs.length - 1].id; }
+      const fresh = (await runIds()).filter(x => !before.has(x));
+      if (fresh.length) id = Math.min(...fresh);
     }
-    if (!id) { st(["Run did not start: ", el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"})]); return; }
-    for (;;) {
+    if (!id) { st(["Run did not start: ", link(null, "open Actions")]); return; }
+    const runUrl = "https://github.com/" + OWNER + "/" + REPO + "/actions/runs/" + id;
+    for (const t0 = Date.now(); ;) {
+      if (Date.now() - t0 > 25 * 60e3) { st(["Still running after 25 minutes: ", link(runUrl, "open log")]); return; }
       const q = await gh("/actions/runs/" + id, {json: true});
       if (q.ok) {
         const run = await q.json();
         if (run.status === "completed") {
           if (run.conclusion === "success") st("Done");
-          else st(["Failed (", el("a", {href: safeUrl(run.html_url), target: "_blank", rel: "noopener noreferrer", text: "open log"}), ")"]);
+          else st(["Failed (", link(run.html_url, "open log"), ")"]);
+          S.source = ""; // show the fresh results even if a file was open
           await loadRemote();
           return;
         }
         st("Running…");
-      }
+      } else st(["Running… (GitHub HTTP " + q.status + ", retrying) ", link(runUrl, "open log")]);
       await sleep(15000);
     }
   } catch (e) {
-    if (e instanceof AuthError) { S.authErr = true; renderBars(); st("Key can't run the screener: give it Actions read and write"); }
+    // A 401/403 here usually means the key lacks Actions write; it can still read results, so no global key warning.
+    if (e instanceof AuthError) st("Key can't run the screener: give it Actions read and write");
+    else if (id) st(["Lost track of the run (" + e.message + "): ", link("https://github.com/" + OWNER + "/" + REPO + "/actions/runs/" + id, "open log")]);
     else st("Run failed to start (" + e.message + "). Try again, or run it from GitHub Actions.");
   } finally { running = false; $("run").disabled = false; }
 }
@@ -705,9 +726,9 @@ function init() {
     try {
       const f = await readFile($("file"));
       if (!looksLikeResults(f.text)) { alert("That file isn't a screener results CSV."); return; }
-      setCurrent(f.text, null, S.index.find(e => e.date === (parseCSV(f.text)[0] || {}).data_date) || null);
-      S.source = "from " + f.name; S.updated = null; S.cached = false; S.msg = null;
-      if (S.cmpDate === S.date) setCompare(null);
+      gen++;
+      S.source = "from " + f.name; setCurrent(f.text); S.updated = null; S.cached = false; S.msg = null; S.refreshErr = null;
+      if (!cmpOk(S.cmpDate)) setCompare(null);
       showKey(false); renderAll();
     } catch { /* cancelled */ }
   });
@@ -723,17 +744,20 @@ function init() {
     try {
       const f = await readFile($("cfile"));
       if (!looksLikeResults(f.text)) { alert("That file isn't a screener results CSV."); return; }
-      setCompare(f.text, null); renderAll();
+      setCompare(f.text, null);
+      if (!cmpOk(S.cmpDate)) { alert("Pick a results file from before " + dateLabel(S.date) + "."); setCompare(null); }
+      renderAll();
     } catch { /* cancelled */ }
   });
   $("keybtn").addEventListener("click", () => showKey($("keyp").hidden));
   $("keysave").addEventListener("click", () => {
     const k = $("keyin").value.trim(); if (!k) return;
-    S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; showKey(false); renderAll(); loadRemote();
+    gen++; S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; S.source = ""; showKey(false); renderAll(); loadRemote();
   });
   $("keyforget").addEventListener("click", () => {
-    S.key = ""; store.del("key"); store.del("cache");
-    Object.assign(S, {rows: null, index: [], status: null, cmpRows: null, cmpDate: null, source: "", msg: null, authErr: false});
+    gen++; S.key = ""; store.del("key"); store.del("cache");
+    Object.assign(S, {rows: null, date: null, meta: null, index: [], status: null, cmpRows: null, cmpDate: null, source: "", msg: null,
+      authErr: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false});
     showKey(true); renderAll();
   });
   document.addEventListener("keydown", e => {
