@@ -514,7 +514,7 @@ function renderEmpty() {
 }
 function renderHeader() {
   const h = $("hdr"); h.textContent = "";
-  if (!S.rows) { h.textContent = S.key ? "Loading…" : "No data loaded"; return; }
+  if (!S.rows) { h.textContent = !S.key ? "No data loaded" : S.msg ? "No data yet" : "Loading…"; return; } // S.msg means loading has finished with nothing to show
   const m = S.meta;
   h.append("Data as of ", el("b", {text: dateLabel(S.date, true)}), " close");
   if (m && m.final === false) h.append(el("span", {cls: "badge warn", text: "Provisional (intraday)"}));
