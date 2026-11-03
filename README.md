@@ -20,10 +20,19 @@ or results-shaped CSV text inside an allowed one, fails the check.
 
 Offline: press **Load CSV** and pick `pse-screener/results/latest.csv`. No key needed.
 
+## Saved filter sets
+
+**Save as…** names the current checkboxes and sliders; each saved set gets its own button next to
+Strict, Loose and Custom (up to 20). **Save changes**, **Rename** and **Delete** appear while a saved set
+is selected. **Filters** hides the panel and shows a one-line summary instead. Sets and the open/hidden
+choice live only in this browser's `localStorage` (`pse.screens`, `pse.filtersOpen`); nothing is sent
+anywhere, and **Forget key** leaves them in place. Shared links still carry the values, never set names.
+
 ## Checks
 
 ```bash
 node tests/static.mjs                                  # size, exact CSP, no innerHTML, file allowlist, no data or tokens (CI runs this)
+node tests/screens.mjs                                 # saved sets: storage cleaning, name rules, panel summary (CI runs this)
 node tests/parity.mjs ../pse-screener ../pse-screener/results/latest.csv
 ```
 
