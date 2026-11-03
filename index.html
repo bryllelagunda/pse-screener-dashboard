@@ -68,6 +68,11 @@ tr.det dd{margin:0;text-align:right}
 .why{color:var(--down)}
 details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 .empty{padding:16px 6px;color:var(--muted)}
+[hidden]{display:none!important}
+.ftop{flex-wrap:nowrap}
+.fsum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fbody>.row{margin-top:12px}
+#fnamein{width:200px}
 .fade{animation:f .15s ease-out}
 @keyframes f{from{opacity:.4}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fade{animation:none}}
@@ -109,19 +114,37 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
  </section>
  <div id="bars"></div>
  <section class="panel" id="controls">
-  <div class="row" style="justify-content:space-between">
-   <div class="row" role="group" aria-label="Preset">
-    <button type="button" data-p="strict">Strict</button>
-    <button type="button" data-p="loose">Loose</button>
-    <button type="button" data-p="custom">Custom</button>
-   </div>
-   <div class="checks">
-    <label><input type="checkbox" id="above_sma200">Price &gt; SMA200</label>
-    <label><input type="checkbox" id="above_sma50">Price &gt; SMA50</label>
-    <label><input type="checkbox" id="sma50_above_sma200">SMA50 &gt; SMA200</label>
-   </div>
+  <div class="row ftop">
+   <button id="ftog" type="button" aria-expanded="true" aria-controls="fbody">Filters ▾</button>
+   <span id="fsum" class="fsum small muted" hidden></span>
   </div>
-  <div class="ctl" id="sliders"></div>
+  <div id="fbody">
+   <div class="row" style="justify-content:space-between">
+    <div class="row" role="group" aria-label="Filter set" id="sets">
+     <button type="button" data-p="strict">Strict</button>
+     <button type="button" data-p="loose">Loose</button>
+     <button type="button" data-p="custom">Custom</button>
+    </div>
+    <div class="checks">
+     <label><input type="checkbox" id="above_sma200">Price &gt; SMA200</label>
+     <label><input type="checkbox" id="above_sma50">Price &gt; SMA50</label>
+     <label><input type="checkbox" id="sma50_above_sma200">SMA50 &gt; SMA200</label>
+    </div>
+   </div>
+   <div class="row">
+    <button id="saveas" type="button">Save as…</button>
+    <button id="savechg" type="button" hidden>Save changes</button>
+    <button id="rename" type="button" hidden>Rename</button>
+    <button id="del" type="button" hidden>Delete</button>
+    <span id="fname" class="row" hidden>
+     <input id="fnamein" type="text" maxlength="30" autocomplete="off" placeholder="Name this set" aria-label="Set name">
+     <button id="fnameok" class="primary" type="button">Save</button>
+     <button id="fnameno" type="button">Cancel</button>
+    </span>
+    <span id="fmsg" class="small why" role="alert"></span>
+   </div>
+   <div class="ctl" id="sliders"></div>
+  </div>
  </section>
  <div class="row" style="margin-top:12px;justify-content:space-between">
   <div class="row chips" id="chips"></div>
@@ -223,6 +246,65 @@ function parseCSV(text) {
 }
 /* FILTER-END */
 
+/* SCREENS-START: saved filter sets and the panel summary (tests/screens.mjs checks it) */
+const MAX_SETS = 20, MAX_NAME = 30;
+function money(x) {
+  if (x === null || x === undefined) return "—";
+  const a = Math.abs(x);
+  for (const [v, u] of [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]])
+    if (a >= v) return "₱" + +(x / v).toFixed(a / v >= 100 ? 0 : a / v >= 10 ? 1 : 2) + u;
+  return "₱" + +x.toFixed(2);
+}
+// Settings read from storage, or null. A missing key takes Strict's value; a wrong one rejects the set.
+function cleanSet(x) {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+  const out = {}, num = (k, v) => typeof v === "number" && Number.isFinite(v) && (k === "roc9_min" || v >= 0);
+  for (const k in STRICT) {
+    const d = STRICT[k], v = Object.hasOwn(x, k) ? x[k] : d;
+    if (typeof d === "boolean") { if (typeof v !== "boolean") return null; out[k] = v; }
+    else if (Array.isArray(d)) { if (!Array.isArray(v) || v.length !== 2 || !v.every(n => num(k, n)) || v[0] > v[1]) return null; out[k] = v.slice(); }
+    else { if (!num(k, v)) return null; out[k] = v; }
+  }
+  return out;
+}
+const cleanName = n => typeof n === "string" ? n.trim().replace(/\s+/g, " ") : "";
+const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
+function loadScreens(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const e of raw) {
+    if (out.length >= MAX_SETS) break;
+    const name = cleanName(e && e.name), set = e ? cleanSet(e.set) : null;
+    if (name && name.length <= MAX_NAME && set && !out.some(o => sameName(o.name, name))) out.push({name, set});
+  }
+  return out;
+}
+// "" when the name can be used; except is the set being renamed.
+function nameError(name, screens, except) {
+  name = cleanName(name);
+  if (!name) return "Enter a name.";
+  if (name.length > MAX_NAME) return "Use " + MAX_NAME + " characters or fewer.";
+  const dup = screens.find(o => sameName(o.name, name) && !(except && sameName(o.name, except)));
+  if (dup) return "A set called “" + dup.name + "” already exists.";
+  if (!except && screens.length >= MAX_SETS) return "You can keep " + MAX_SETS + " sets. Delete one first.";
+  return "";
+}
+const sameSet = (a, b) => Object.keys(STRICT).every(k => Array.isArray(STRICT[k]) ? a[k][0] === b[k][0] && a[k][1] === b[k][1] : a[k] === b[k]);
+function summary(s) {
+  const out = [];
+  if (s.above_sma200) out.push("Price > SMA200");
+  if (s.above_sma50) out.push("Price > SMA50");
+  if (s.sma50_above_sma200) out.push("SMA50 > SMA200");
+  out.push("ROC ≥ " + s.roc9_min + "%");
+  if (s.mcap_min > 0) out.push("Mkt cap ≥ " + money(s.mcap_min));
+  if (s.price_min > 0) out.push("Price > " + money(s.price_min));
+  if (s.avg_value_min > 0) out.push("30D value > " + money(s.avg_value_min));
+  if (s.value_today_min > 0) out.push("Today's value > " + money(s.value_today_min));
+  out.push("52W high " + s.high_band[0] + "–" + s.high_band[1] + "% below", "ATR " + s.atr_band[0] + "–" + s.atr_band[1] + "%");
+  return out.join(" · ");
+}
+/* SCREENS-END */
+
 // ------------------------------------------------------------------ helpers
 const $ = id => document.getElementById(id);
 function el(tag, props, ...kids) {
@@ -239,18 +321,11 @@ function el(tag, props, ...kids) {
 }
 const store = {
   get(k, d) { try { const v = localStorage.getItem("pse." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("pse." + k, JSON.stringify(v)); } catch { /* quota or private mode */ } },
+  set(k, v) { try { localStorage.setItem("pse." + k, JSON.stringify(v)); return true; } catch { return false; } }, // false: quota or private mode
   del(k) { try { localStorage.removeItem("pse." + k); } catch { /* ignore */ } },
 };
 const MINUS = "−";
 const sign = (x, d = 1) => (x > 0 ? "+" : x < 0 ? MINUS : "") + Math.abs(x).toFixed(d);
-function money(x) {
-  if (x === null || x === undefined) return "—";
-  const a = Math.abs(x);
-  for (const [v, u] of [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]])
-    if (a >= v) return "₱" + +(x / v).toFixed(a / v >= 100 ? 0 : a / v >= 10 ? 1 : 2) + u;
-  return "₱" + +x.toFixed(2);
-}
 const price = x => x === null ? "—" : x.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: x < 1 ? 4 : 2});
 const pct = (x, d = 1) => x === null ? "—" : x.toFixed(d) + "%";
 const spct = (x, d = 1) => x === null ? "—" : sign(x, d) + "%";
@@ -273,6 +348,7 @@ const S = {
   cmpRows: null, cmpDate: null,
   preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", open: new Set(),
   parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null,
+  screens: loadScreens(store.get("screens", [])), screen: null, dirty: false, fopen: store.get("filtersOpen", true) !== false,
 };
 
 // ------------------------------------------------------------------ settings and URL
@@ -304,7 +380,7 @@ function settingsToURL() {
     p.set(URLK[k], Array.isArray(v) ? v.join("_") : typeof v === "boolean" ? +v : v);
   }
   history.replaceState(null, "", "?" + p);
-  store.set("settings", {preset: S.preset, set: S.set});
+  store.set("settings", {preset: S.preset, set: S.set, screen: S.screen, dirty: S.dirty});
 }
 function settingsFromURL() {
   const p = new URLSearchParams(location.search), pr = p.get("p");
@@ -351,12 +427,66 @@ function buildControls() {
   }
   for (const k of CHECKS) $(k).addEventListener("change", e => { S.set[k] = e.target.checked; toCustom(); });
   for (const b of document.querySelectorAll("[data-p]")) b.addEventListener("click", () => {
-    S.preset = b.dataset.p;
+    S.preset = b.dataset.p; S.screen = null; S.dirty = false;
     if (S.preset !== "custom") S.set = {...PRESETS[S.preset], high_band: PRESETS[S.preset].high_band.slice(), atr_band: PRESETS[S.preset].atr_band.slice()};
     update();
   });
+  $("ftog").addEventListener("click", () => { S.fopen = !S.fopen; store.set("filtersOpen", S.fopen); syncPanel(); });
+  $("saveas").addEventListener("click", () => nameBox("new"));
+  $("rename").addEventListener("click", () => nameBox("rename"));
+  $("fnameok").addEventListener("click", nameSubmit);
+  $("fnameno").addEventListener("click", () => nameBox(null));
+  $("fnamein").addEventListener("keydown", e => { if (e.key === "Enter") nameSubmit(); else if (e.key === "Escape") nameBox(null); });
+  $("savechg").addEventListener("click", () => {
+    if (saveScreens(S.screens.map(o => sameName(o.name, S.screen) ? {name: o.name, set: cleanSet(S.set)} : o))) { S.dirty = false; update(); }
+  });
+  $("del").addEventListener("click", () => {
+    if (!confirm("Delete saved set “" + S.screen + "”?")) return;
+    if (saveScreens(S.screens.filter(o => !sameName(o.name, S.screen)))) { S.screen = null; S.dirty = false; S.preset = "custom"; nameBox(null); update(); }
+  });
+  renderSets();
 }
-function toCustom() { S.preset = "custom"; update(); }
+function toCustom() {
+  const sc = S.screen && S.screens.find(o => o.name === S.screen);
+  if (sc) S.dirty = !sameSet(S.set, sc.set); else S.preset = "custom";
+  update();
+}
+
+// ------------------------------------------------------------------ saved sets and the panel toggle
+function saveScreens(list) {
+  if (!store.set("screens", list)) { $("fmsg").textContent = "Couldn't save in this browser (storage full or private mode)."; return false; }
+  S.screens = list; $("fmsg").textContent = ""; renderSets();
+  return true;
+}
+function renderSets() {
+  for (const b of document.querySelectorAll("[data-s]")) b.remove();
+  for (const o of S.screens) $("sets").append(el("button", {type: "button", "data-s": o.name, text: o.name, onclick: () => {
+    S.preset = "custom"; S.screen = o.name; S.dirty = false; S.set = cleanSet(o.set); nameBox(null); update();
+  }}));
+}
+let nameMode = null; // "new", "rename" or null (box closed)
+function nameBox(mode) {
+  nameMode = mode; $("fname").hidden = !mode; $("fmsg").textContent = "";
+  if (!mode) return;
+  $("fnamein").value = mode === "rename" ? S.screen : "";
+  $("fnamein").focus();
+}
+function nameSubmit() {
+  const name = cleanName($("fnamein").value), err = nameError(name, S.screens, nameMode === "rename" ? S.screen : null);
+  if (err) { $("fmsg").textContent = err; return; }
+  const list = nameMode === "rename" ? S.screens.map(o => sameName(o.name, S.screen) ? {name, set: o.set} : o)
+    : [...S.screens, {name, set: cleanSet(S.set)}];
+  if (!saveScreens(list)) return;
+  if (nameMode === "new") { S.preset = "custom"; S.dirty = false; }
+  S.screen = name; nameBox(null); update();
+}
+function activeName() {
+  return S.screen ? S.screen + (S.dirty ? " (edited)" : "") : S.preset[0].toUpperCase() + S.preset.slice(1);
+}
+function syncPanel() {
+  $("fbody").hidden = !S.fopen; $("fsum").hidden = S.fopen;
+  $("ftog").setAttribute("aria-expanded", String(S.fopen)); $("ftog").textContent = "Filters " + (S.fopen ? "▾" : "▸");
+}
 function syncControls() {
   for (const c of SLIDERS) {
     const vals = c.band ? S.set[c.k] : [S.set[c.k]];
@@ -368,7 +498,15 @@ function syncControls() {
     });
   }
   for (const k of CHECKS) $(k).checked = S.set[k];
-  for (const b of document.querySelectorAll("[data-p]")) b.setAttribute("aria-pressed", String(b.dataset.p === S.preset));
+  for (const b of document.querySelectorAll("[data-p]")) b.setAttribute("aria-pressed", String(!S.screen && b.dataset.p === S.preset));
+  for (const b of document.querySelectorAll("[data-s]")) {
+    const on = b.dataset.s === S.screen;
+    b.setAttribute("aria-pressed", String(on)); b.textContent = b.dataset.s + (on && S.dirty ? " (edited)" : "");
+  }
+  $("savechg").hidden = !(S.screen && S.dirty); $("rename").hidden = $("del").hidden = !S.screen;
+  if (!S.screen && nameMode === "rename") nameBox(null);
+  const sum = activeName() + " — " + summary(S.set);
+  $("fsum").textContent = sum; $("fsum").title = sum;
 }
 
 // ------------------------------------------------------------------ compute
@@ -719,7 +857,11 @@ function init() {
   const s = settingsFromURL();
   if (s && s.set && (s.preset === "custom" || PRESETS[s.preset])) { S.preset = s.preset; S.set = {...STRICT, ...s.set}; }
   if (S.preset !== "custom") S.set = {...PRESETS[S.preset]};
-  buildControls(); syncControls(); settingsToURL();
+  // Reselect the last saved set only if the URL still holds the settings it was last seen with (a shared link may not).
+  const last = store.get("settings", null), sc = last && typeof last.screen === "string" && S.screens.find(o => o.name === last.screen);
+  const lastSet = last && cleanSet(last.set);
+  if (sc && S.preset === "custom" && lastSet && sameSet(S.set, lastSet)) { S.screen = sc.name; S.dirty = !sameSet(S.set, sc.set); }
+  buildControls(); syncControls(); syncPanel(); settingsToURL();
   $("q").addEventListener("input", e => { S.q = e.target.value; if (S.rows) render(); });
   $("run").addEventListener("click", runNow);
   $("load").addEventListener("click", () => $("file").click());

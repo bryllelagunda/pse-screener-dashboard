@@ -12,3 +12,4 @@ jobs:
         with:
           node-version: 22
       - run: node tests/static.mjs
+      - run: node tests/screens.mjs
