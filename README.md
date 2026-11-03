@@ -24,7 +24,7 @@ Offline: press **Load CSV** and pick `pse-screener/results/latest.csv`. No key n
 
 **Save as…** names the current checkboxes and sliders; each saved set gets its own button next to
 Strict, Loose and Custom (up to 20). **Save changes**, **Rename** and **Delete** appear while a saved set
-is selected. **Filters** hides the panel and shows a one-line summary instead. Sets and the open/hidden
+is selected. **Hide filters** folds away the checkboxes and sliders, leaving the set buttons and a one-line summary. Sets and the open/hidden
 choice live only in this browser's `localStorage` (`pse.screens`, `pse.filtersOpen`); nothing is sent
 anywhere, and **Forget key** leaves them in place. Shared links still carry the values, never set names.
 
