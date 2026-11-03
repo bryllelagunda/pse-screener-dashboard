@@ -594,23 +594,24 @@ function defaultCompare() {
   const prev = S.index.find(e => e.final && cmpOk(e.date));
   return prev ? prev.date : null;
 }
-async function loadRemote() {
+async function loadRemote(replaceFile) {
   if (!S.key) return;
   const my = ++gen;
+  const stale = () => my !== gen || (S.source && !replaceFile); // a newer load, or a file the user opened, wins
   try {
     const [csv, idx, st, hol] = await Promise.all(["latest.csv", "index.json", "status.json"].map(f => fileText("results/" + f)).concat(fileText("data/holidays.csv")));
-    if (my !== gen || S.source) return;
+    if (stale()) return;
     S.authErr = false; S.refreshErr = null;
     S.index = idx ? JSON.parse(idx) : [];
     S.status = st ? JSON.parse(st) : null;
     S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
     if (!csv && !idx && !hol) { S.authErr = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; renderAll(); return; } // a key without access to the repo gets 404s
     if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; renderAll(); return; }
-    setCurrent(csv);
+    S.source = ""; setCurrent(csv);
     S.updated = Date.now(); S.cached = false; S.msg = null;
     const cd = cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
     const ccsv = cd ? await fileText("results/" + cd + ".csv") : null;
-    if (my !== gen || S.source) return;
+    if (my !== gen) return;
     setCompare(ccsv, cd);
     store.set("cache", {csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
     renderAll();
@@ -664,7 +665,7 @@ async function runNow() {
   const sleep = ms => new Promise(f => setTimeout(f, ms));
   const RUNS = "/actions/workflows/screen.yml/runs?event=workflow_dispatch&per_page=10";
   const runIds = async () => { const q = await gh(RUNS, {json: true}); if (!q.ok) throw new Error("runs HTTP " + q.status); return ((await q.json()).workflow_runs || []).map(x => x.id); };
-  let id = null;
+  let id = null, accepted = false;
   try {
     st("Starting…");
     // Remember the runs that already exist, so the new one is found by ID, not by the device clock.
@@ -673,12 +674,13 @@ async function runNow() {
     if (!r.ok) throw new Error("dispatch HTTP " + r.status);
     if (r.status === 200) { try { const j = await r.json(); id = j.workflow_run_id || null; } catch { /* no body */ } }
     const T = Date.now();
+    accepted = true;
     while (!id && Date.now() - T < 120e3) {
       await sleep(5000);
-      const fresh = (await runIds()).filter(x => !before.has(x));
-      if (fresh.length) id = Math.min(...fresh);
+      try { const fresh = (await runIds()).filter(x => !before.has(x)); if (fresh.length) id = Math.min(...fresh); }
+      catch (e) { if (e instanceof AuthError) throw e; /* a hiccup while looking: keep looking until the deadline */ }
     }
-    if (!id) { st(["Run did not start: ", link(null, "open Actions")]); return; }
+    if (!id) { st(["Started, but the run didn't show up: ", link(null, "open Actions")]); return; }
     const runUrl = "https://github.com/" + OWNER + "/" + REPO + "/actions/runs/" + id;
     for (const t0 = Date.now(); ;) {
       if (Date.now() - t0 > 25 * 60e3) { st(["Still running after 25 minutes: ", link(runUrl, "open log")]); return; }
@@ -688,8 +690,7 @@ async function runNow() {
         if (run.status === "completed") {
           if (run.conclusion === "success") st("Done");
           else st(["Failed (", link(run.html_url, "open log"), ")"]);
-          S.source = ""; // show the fresh results even if a file was open
-          await loadRemote();
+          await loadRemote(true); // show the fresh results even if a file was open
           return;
         }
         st("Running…");
@@ -699,6 +700,7 @@ async function runNow() {
   } catch (e) {
     // A 401/403 here usually means the key lacks Actions write; it can still read results, so no global key warning.
     if (e instanceof AuthError) st("Key can't run the screener: give it Actions read and write");
+    else if (accepted && !id) st(["Started, but lost track of the run (" + e.message + "): ", link(null, "open Actions")]);
     else if (id) st(["Lost track of the run (" + e.message + "): ", link("https://github.com/" + OWNER + "/" + REPO + "/actions/runs/" + id, "open log")]);
     else st("Run failed to start (" + e.message + "). Try again, or run it from GitHub Actions.");
   } finally { running = false; $("run").disabled = false; }
@@ -752,7 +754,7 @@ function init() {
   $("keybtn").addEventListener("click", () => showKey($("keyp").hidden));
   $("keysave").addEventListener("click", () => {
     const k = $("keyin").value.trim(); if (!k) return;
-    gen++; S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; S.source = ""; showKey(false); renderAll(); loadRemote();
+    gen++; S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; showKey(false); renderAll(); loadRemote(true);
   });
   $("keyforget").addEventListener("click", () => {
     gen++; S.key = ""; store.del("key"); store.del("cache");
