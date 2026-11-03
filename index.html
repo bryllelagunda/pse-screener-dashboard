@@ -69,9 +69,9 @@ tr.det dd{margin:0;text-align:right}
 details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 .empty{padding:16px 6px;color:var(--muted)}
 [hidden]{display:none!important}
-.ftop{flex-wrap:nowrap}
-.fsum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#fbody>.row{margin-top:12px}
+.fsum{margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ftog{margin-left:auto}
+#fbody>.row,#fbody>.checks{margin-top:12px}
 #fnamein{width:200px}
 .fade{animation:f .15s ease-out}
 @keyframes f{from{opacity:.4}to{opacity:1}}
@@ -114,22 +114,18 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
  </section>
  <div id="bars"></div>
  <section class="panel" id="controls">
-  <div class="row ftop">
-   <button id="ftog" type="button" aria-expanded="true" aria-controls="fbody">Filters ▾</button>
-   <span id="fsum" class="fsum small muted" hidden></span>
+  <div class="row" role="group" aria-label="Filter set" id="sets">
+   <button type="button" data-p="strict">Strict</button>
+   <button type="button" data-p="loose">Loose</button>
+   <button type="button" data-p="custom">Custom</button>
+   <button id="ftog" type="button" aria-expanded="true" aria-controls="fbody">Hide filters ▴</button>
   </div>
+  <div id="fsum" class="fsum small muted" hidden></div>
   <div id="fbody">
-   <div class="row" style="justify-content:space-between">
-    <div class="row" role="group" aria-label="Filter set" id="sets">
-     <button type="button" data-p="strict">Strict</button>
-     <button type="button" data-p="loose">Loose</button>
-     <button type="button" data-p="custom">Custom</button>
-    </div>
-    <div class="checks">
-     <label><input type="checkbox" id="above_sma200">Price &gt; SMA200</label>
-     <label><input type="checkbox" id="above_sma50">Price &gt; SMA50</label>
-     <label><input type="checkbox" id="sma50_above_sma200">SMA50 &gt; SMA200</label>
-    </div>
+   <div class="checks">
+    <label><input type="checkbox" id="above_sma200">Price &gt; SMA200</label>
+    <label><input type="checkbox" id="above_sma50">Price &gt; SMA50</label>
+    <label><input type="checkbox" id="sma50_above_sma200">SMA50 &gt; SMA200</label>
    </div>
    <div class="row">
     <button id="saveas" type="button">Save as…</button>
@@ -460,9 +456,9 @@ function saveScreens(list) {
 }
 function renderSets() {
   for (const b of document.querySelectorAll("[data-s]")) b.remove();
-  for (const o of S.screens) $("sets").append(el("button", {type: "button", "data-s": o.name, text: o.name, onclick: () => {
+  for (const o of S.screens) $("sets").insertBefore(el("button", {type: "button", "data-s": o.name, text: o.name, onclick: () => {
     S.preset = "custom"; S.screen = o.name; S.dirty = false; S.set = cleanSet(o.set); nameBox(null); update();
-  }}));
+  }}), $("ftog")); // saved sets go before the toggle
 }
 let nameMode = null; // "new", "rename" or null (box closed)
 function nameBox(mode) {
@@ -485,7 +481,7 @@ function activeName() {
 }
 function syncPanel() {
   $("fbody").hidden = !S.fopen; $("fsum").hidden = S.fopen;
-  $("ftog").setAttribute("aria-expanded", String(S.fopen)); $("ftog").textContent = "Filters " + (S.fopen ? "▾" : "▸");
+  $("ftog").setAttribute("aria-expanded", String(S.fopen)); $("ftog").textContent = S.fopen ? "Hide filters ▴" : "Show filters ▾";
 }
 function syncControls() {
   for (const c of SLIDERS) {
