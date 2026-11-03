@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://api.github.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<title>PSE Screener</title>
+<style>
+:root{--bg:#16191f;--panel:#1d2129;--line:#2b313b;--text:#e6e9ee;--muted:#98a2b0;--accent:#5b9dff;--up:#3fb27f;--down:#f0645a;--hh:0px}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+a{color:var(--accent)}
+button,input,select{font:inherit;color:inherit}
+button,select,.btn{min-height:44px;padding:0 14px;background:var(--panel);border:1px solid var(--line);border-radius:8px;cursor:pointer}
+button:hover,select:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#0d1420;font-weight:600}
+button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#0d1420;font-weight:600}
+button:disabled{opacity:.6;cursor:default}
+input[type=text],input[type=password],input[type=search]{min-height:44px;padding:0 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 12px 40px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+header .wrap{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding-top:10px;padding-bottom:10px}
+h1{font-size:20px;margin:0}
+h2{font-size:16px;margin:0 0 8px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;border:1px solid var(--accent);color:var(--accent);margin-left:6px;vertical-align:middle}
+.badge.warn{border-color:#e0b04f;color:#e0b04f}
+.bar{border-radius:10px;padding:10px 14px;margin-top:12px;border:1px solid #6b5a2b;background:#2a2619}
+.bar.err{border-color:#6e3632;background:#2b1d1d}
+.bar.mute{border-color:var(--line);background:var(--panel);color:var(--muted)}
+.ctl{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px 24px;margin-top:12px}
+.ctl label{display:block}
+.lab{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.lab b{color:var(--text)}
+.lab input{width:84px;min-height:34px;text-align:right}
+.lab .row{flex-wrap:nowrap}
+.lab .row input{width:60px}
+input[type=range]{width:100%;height:32px;margin:4px 0 0;accent-color:var(--accent)}
+.checks label{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-right:14px}
+.checks input{width:20px;height:20px;accent-color:var(--accent)}
+.chips button{border-radius:22px}
+.chips b{margin-right:4px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{position:sticky;top:var(--hh);background:var(--panel);z-index:2;font-size:12px;font-weight:600;color:var(--muted);padding:0}
+thead th button{all:unset;display:block;width:100%;box-sizing:border-box;padding:12px 6px;cursor:pointer;text-align:inherit}
+thead th button:focus-visible{outline:2px solid var(--accent)}
+th.hl,td.hl{font-weight:700}
+thead th.hl button{color:var(--text)}
+td .nm{display:block;font-weight:400;font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.up{color:var(--up)}.down{color:var(--down)}
+tr.det{display:none}
+tr.det td{text-align:left;white-space:normal}
+tr.det dl{display:grid;grid-template-columns:auto auto;gap:4px 12px;margin:0}
+tr.det dd{margin:0;text-align:right}
+.list{width:100%}
+.list td{text-align:left;white-space:normal}
+.list td:first-child{font-weight:600;width:90px}
+.why{color:var(--down)}
+details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.empty{padding:16px 6px;color:var(--muted)}
+.fade{animation:f .15s ease-out}
+@keyframes f{from{opacity:.4}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.fade{animation:none}}
+@media (max-width:639px){
+ .x{display:none}
+ tr.main{cursor:pointer}
+ tr.det.open{display:table-row}
+ td .nm{max-width:130px}
+ header .wrap>div:last-child{width:100%}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+ <div>
+  <h1>PSE Screener</h1>
+  <div id="hdr" class="small muted">No data loaded</div>
+ </div>
+ <div class="row">
+  <button id="run" type="button" title="Run the screener now (r)">Run now</button>
+  <span id="runst" class="small muted" role="status" aria-live="polite"></span>
+  <button id="load" type="button">Load CSV</button>
+  <select id="cmp" aria-label="Compare with"><option value="">Compare with…</option></select>
+  <button id="keybtn" type="button" aria-expanded="false">Key</button>
+  <input id="file" type="file" accept=".csv,text/csv" hidden>
+  <input id="cfile" type="file" accept=".csv,text/csv" hidden>
+ </div>
+</div></header>
+<main class="wrap">
+ <section id="keyp" class="panel" hidden>
+  <h2 id="keyh">Connect your private results</h2>
+  <p class="small muted" id="keyt">Paste a fine-grained GitHub token. Give it access to the <b>pse-screener</b> repository only, with <b>Contents: read</b> and <b>Actions: read and write</b>, expiring in up to 1 year. It is stored in this browser only. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a token on GitHub</a>.</p>
+  <div class="row">
+   <input id="keyin" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" aria-label="GitHub token" style="flex:1;min-width:220px">
+   <button id="keysave" class="primary" type="button">Save key</button>
+   <button id="keyforget" type="button">Forget key</button>
+   <button id="keyload" type="button">Load CSV instead</button>
+  </div>
+ </section>
+ <div id="bars"></div>
+ <section class="panel" id="controls">
+  <div class="row" style="justify-content:space-between">
+   <div class="row" role="group" aria-label="Preset">
+    <button type="button" data-p="strict">Strict</button>
+    <button type="button" data-p="loose">Loose</button>
+    <button type="button" data-p="custom">Custom</button>
+   </div>
+   <div class="checks">
+    <label><input type="checkbox" id="above_sma200">Price &gt; SMA200</label>
+    <label><input type="checkbox" id="above_sma50">Price &gt; SMA50</label>
+    <label><input type="checkbox" id="sma50_above_sma200">SMA50 &gt; SMA200</label>
+   </div>
+  </div>
+  <div class="ctl" id="sliders"></div>
+ </section>
+ <div class="row" style="margin-top:12px;justify-content:space-between">
+  <div class="row chips" id="chips"></div>
+  <input id="q" type="search" placeholder="Search ticker or name ( / )" aria-label="Search" style="min-width:220px">
+ </div>
+ <section class="panel" style="padding:0 8px 4px">
+  <table id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tb"></tbody></table>
+  <div id="tblempty" class="empty" hidden></div>
+ </section>
+ <section class="panel"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span></h2><table class="list"><tbody id="missed"></tbody></table></section>
+ <section class="panel"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
+ <section class="panel"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
+ <p class="small muted">Prices are read from your private repository with your key, or from a file you load. This page stores nothing on any server.</p>
+</main>
+<script>
+"use strict";
+const OWNER = "bryllelagunda", REPO = "pse-screener", API = "https://api.github.com/repos/" + OWNER + "/" + REPO;
+
+/* FILTER-START: must match pse_screener.evaluate exactly (tests/parity.mjs checks it) */
+const STRICT = {above_sma200: true, above_sma50: true, sma50_above_sma200: true, roc9_min: 5, price_min: 1,
+  avg_value_min: 5e6, mcap_min: 1e9, value_today_min: 0, high_band: [0, 20], atr_band: [1, 4]};
+const LOOSE = {above_sma200: true, above_sma50: false, sma50_above_sma200: true, roc9_min: 0, price_min: 1,
+  avg_value_min: 5e6, mcap_min: 5e8, value_today_min: 1e7, high_band: [0, 30], atr_band: [1, 6]};
+const PRESETS = {strict: STRICT, loose: LOOSE};
+
+// Python f"{x:,.2f}".rstrip("0").rstrip("."), including round-half-even on exact ties.
+function fmt(x) {
+  const neg = x < 0 || Object.is(x, -0), a = Math.abs(x);
+  let s = a.toFixed(2);
+  if (a < 1e21) {
+    const frac = a.toFixed(100).split(".")[1];
+    if (frac[2] === "5" && /^0*$/.test(frac.slice(3)) && +frac[1] % 2 === 0) s = a.toFixed(100).split(".")[0] + "." + frac.slice(0, 2);
+  }
+  let [i, f] = s.split(".");
+  i = i.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return (neg ? "-" : "") + (i + "." + f).replace(/0+$/, "").replace(/\.$/, "");
+}
+function missing(row, col) { const v = row[col]; return v === null || v === undefined || Number.isNaN(v); }
+
+// Every failed rule, before de-duplication: [{rule, text}]. text is the screener's reason.
+function failures(row, s, dataDate) {
+  if (row.fetch_error) return [{rule: "fetch", text: "not scanned: " + row.fetch_error}];
+  if (row.stale) return [{rule: "stale", text: "no trade on " + dataDate}];
+  const out = [], ses = row.sessions === undefined ? 0 : row.sessions;
+  const short = "insufficient history (" + (ses === null ? "None" : ses) + " sessions)";
+  const need = (rule, ...cols) => {
+    if (cols.some(c => missing(row, c))) { out.push({rule, text: short, short: true}); return false; }
+    return true;
+  };
+  const r = row;
+  if (s.above_sma200 && need("sma200", "close", "sma200") && !(r.close > r.sma200)) out.push({rule: "sma200", text: "close below sma200"});
+  if (s.above_sma50 && need("sma50", "close", "sma50") && !(r.close > r.sma50)) out.push({rule: "sma50", text: "close below sma50"});
+  if (s.sma50_above_sma200 && need("cross", "sma50", "sma200") && !(r.sma50 > r.sma200)) out.push({rule: "cross", text: "sma50 below sma200"});
+  if (need("roc9", "roc9") && !(r.roc9 >= s.roc9_min)) out.push({rule: "roc9", text: "roc9 " + fmt(r.roc9) + " < " + fmt(s.roc9_min)});
+  if (s.price_min > 0 && need("price", "close") && !(r.close > s.price_min)) out.push({rule: "price", text: "close " + fmt(r.close) + " <= " + fmt(s.price_min)});
+  if (s.avg_value_min > 0 && need("avg", "avg_value_30d") && !(r.avg_value_30d > s.avg_value_min))
+    out.push({rule: "avg", text: "avg_value_30d " + fmt(r.avg_value_30d) + " <= " + fmt(s.avg_value_min)});
+  if (s.mcap_min > 0) {
+    if (missing(r, "mcap")) out.push({rule: "mcap", text: "market cap unavailable"});
+    else if (!(r.mcap >= s.mcap_min)) out.push({rule: "mcap", text: "mcap " + fmt(r.mcap) + " < " + fmt(s.mcap_min)});
+  }
+  if (s.value_today_min > 0 && need("vt", "value_today") && !(r.value_today > s.value_today_min))
+    out.push({rule: "vt", text: "value_today " + fmt(r.value_today) + " <= " + fmt(s.value_today_min)});
+  let [lo, hi] = s.high_band;
+  if (need("high", "pct_high_above_close") && !(lo <= r.pct_high_above_close && r.pct_high_above_close <= hi))
+    out.push({rule: "high", text: "pct_high_above_close " + fmt(r.pct_high_above_close) + " outside " + fmt(lo) + "-" + fmt(hi)});
+  [lo, hi] = s.atr_band;
+  if (need("atr", "atr_pct14") && !(lo <= r.atr_pct14 && r.atr_pct14 <= hi))
+    out.push({rule: "atr", text: "atr_pct14 " + fmt(r.atr_pct14) + " outside " + fmt(lo) + "-" + fmt(hi)});
+  return out;
+}
+function evaluate(row, s, dataDate) { return [...new Set(failures(row, s, dataDate).map(f => f.text))]; }
+
+const NUM = new Set(["sessions", "close", "chg_pct", "value_today", "cci20", "atr_pct14", "roc9", "pct_vs_sma50", "pct_vs_sma200",
+  "sma50", "sma200", "high_52w", "pct_high_above_close", "avg_value_30d", "mcap"]);
+const BOOL = new Set(["stale", "pass_strict", "pass_loose"]);
+function parseCSV(text) {
+  const rows = []; let row = [], f = "", q = false, i = 0;
+  text = text.replace(/^﻿/, "");
+  for (; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(f); f = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; }
+    else f += c;
+  }
+  if (f !== "" || row.length) { row.push(f); rows.push(row); }
+  const head = rows.shift() || [];
+  return rows.filter(r => r.length > 1 || r[0] !== "").map(r => {
+    const o = {};
+    head.forEach((h, j) => {
+      const v = r[j] === undefined ? "" : r[j];
+      // Empty cells are null, never 0: a null fails any enabled rule that reads it.
+      o[h] = v === "" ? null : NUM.has(h) ? Number(v) : BOOL.has(h) ? v === "true" : v;
+    });
+    return o;
+  });
+}
+/* FILTER-END */
+
+// ------------------------------------------------------------------ helpers
+const $ = id => document.getElementById(id);
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  if (props) for (const k in props) {
+    if (props[k] === null || props[k] === undefined || props[k] === false) continue;
+    if (k === "text") e.textContent = props[k];
+    else if (k === "cls") e.className = props[k];
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), props[k]);
+    else e.setAttribute(k, props[k]);
+  }
+  for (const k of kids) if (k !== null && k !== undefined && k !== false) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("pse." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("pse." + k, JSON.stringify(v)); } catch { /* quota or private mode */ } },
+  del(k) { try { localStorage.removeItem("pse." + k); } catch { /* ignore */ } },
+};
+const MINUS = "−";
+const sign = (x, d = 1) => (x > 0 ? "+" : x < 0 ? MINUS : "") + Math.abs(x).toFixed(d);
+function money(x) {
+  if (x === null || x === undefined) return "—";
+  const a = Math.abs(x);
+  for (const [v, u] of [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]])
+    if (a >= v) return "₱" + +(x / v).toFixed(a / v >= 100 ? 0 : a / v >= 10 ? 1 : 2) + u;
+  return "₱" + +x.toFixed(2);
+}
+const price = x => x === null ? "—" : x.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: x < 1 ? 4 : 2});
+const pct = (x, d = 1) => x === null ? "—" : x.toFixed(d) + "%";
+const spct = (x, d = 1) => x === null ? "—" : sign(x, d) + "%";
+function dateLabel(iso, withYear) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US",
+    {weekday: "short", month: "short", day: "numeric", year: withYear ? "numeric" : undefined, timeZone: "UTC"});
+}
+const manila = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3); // Asia/Manila is UTC+8, no DST
+const manilaISO = d => manila(d).toISOString().slice(0, 10);
+const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
+const safeUrl = u => typeof u === "string" && /^https:\/\/github\.com\//.test(u) ? u : "https://github.com/" + OWNER + "/" + REPO + "/actions";
+
+// ------------------------------------------------------------------ state
+const S = {
+  key: store.get("key", ""),
+  rows: null, date: null, meta: null, source: "", updated: null, cached: false,
+  index: [], status: null, holidays: new Set(),
+  cmpRows: null, cmpDate: null,
+  preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", open: new Set(),
+  parity: 0, fixtureBad: 0, authErr: false, msg: null,
+};
+
+// ------------------------------------------------------------------ settings and URL
+const MONEY_STEPS = [0, 1e6, 2e6, 5e6, 1e7, 2e7, 5e7, 1e8];
+const SLIDERS = [
+  {k: "roc9_min", label: "ROC(9) at least", min: -20, max: 30, step: 0.5, show: v => v + "%"},
+  {k: "mcap_min", label: "Market cap at least", steps: [0, 1e8, 2.5e8, 5e8, 1e9, 2e9, 5e9, 1e10, 5e10, 1e11], money: true},
+  {k: "high_band", label: "Below 52-week high, %", band: true, min: 0, max: 100, step: 1},
+  {k: "avg_value_min", label: "30-day avg value above", steps: MONEY_STEPS, money: true},
+  {k: "value_today_min", label: "Today's value above", steps: MONEY_STEPS, money: true},
+  {k: "price_min", label: "Price above", steps: [0, 0.5, 1, 2, 5, 10, 20, 50, 100], money: true},
+  {k: "atr_band", label: "ATR% (14) between", band: true, min: 0, max: 15, step: 0.5},
+];
+const CHECKS = ["above_sma200", "above_sma50", "sma50_above_sma200"];
+const URLK = {above_sma200: "s200", above_sma50: "s50", sma50_above_sma200: "x", roc9_min: "roc", price_min: "price",
+  avg_value_min: "avg", mcap_min: "mcap", value_today_min: "vt", high_band: "hi", atr_band: "atr"};
+
+function parseMoney(t) {
+  t = String(t).trim().toLowerCase().replace(/[₱,\s]/g, "");
+  if (t === "" || t === "off") return 0;
+  const m = /^(-?\d*\.?\d+)([kmbt]?)$/.exec(t);
+  return m ? +m[1] * ({"": 1, k: 1e3, m: 1e6, b: 1e9, t: 1e12})[m[2]] : NaN;
+}
+function settingsToURL() {
+  const p = new URLSearchParams();
+  p.set("p", S.preset);
+  if (S.preset === "custom") for (const k in URLK) {
+    const v = S.set[k];
+    p.set(URLK[k], Array.isArray(v) ? v.join("_") : typeof v === "boolean" ? +v : v);
+  }
+  history.replaceState(null, "", "?" + p);
+  store.set("settings", {preset: S.preset, set: S.set});
+}
+function settingsFromURL() {
+  const p = new URLSearchParams(location.search), pr = p.get("p");
+  if (pr === "strict" || pr === "loose") return {preset: pr, set: {...PRESETS[pr]}};
+  if (pr === "custom") {
+    const set = {...STRICT};
+    for (const k in URLK) {
+      const v = p.get(URLK[k]);
+      if (v === null) continue;
+      if (typeof set[k] === "boolean") set[k] = v === "1";
+      else if (Array.isArray(set[k])) { const b = v.split("_").map(Number); if (b.length === 2 && b.every(Number.isFinite)) set[k] = b; }
+      else if (Number.isFinite(+v)) set[k] = +v;
+    }
+    return {preset: "custom", set};
+  }
+  return store.get("settings", null);
+}
+
+function buildControls() {
+  const box = $("sliders");
+  for (const c of SLIDERS) {
+    const parts = c.band ? [0, 1] : [null];
+    const lab = el("div", {cls: "lab"}, el("span", {text: c.label}));
+    const ins = parts.map(i => el("input", {type: "text", inputmode: "decimal", "aria-label": c.label + (i === null ? "" : i ? " maximum" : " minimum")}));
+    const ranges = parts.map(i => el("input", {type: "range", "aria-label": c.label + (i === null ? "" : i ? " maximum" : " minimum"),
+      min: c.steps ? 0 : c.min, max: c.steps ? c.steps.length - 1 : c.max, step: c.steps ? 1 : c.step}));
+    const valbox = el("span", {cls: "row", style: "gap:4px"});
+    ins.forEach((inp, j) => { if (j) valbox.append("–"); valbox.append(inp); });
+    lab.append(valbox);
+    c.ins = ins; c.ranges = ranges;
+    const read = () => c.band ? S.set[c.k].slice() : S.set[c.k];
+    const write = v => { S.set[c.k] = v; toCustom(); };
+    ranges.forEach((r, j) => r.addEventListener("input", () => {
+      const v = c.steps ? c.steps[+r.value] : +r.value;
+      if (c.band) { const b = read(); b[j] = v; if (b[0] > b[1]) b[1 - j] = v; write(b); } else write(v);
+    }));
+    ins.forEach((inp, j) => inp.addEventListener("change", () => {
+      const v = c.money ? parseMoney(inp.value) : parseFloat(inp.value);
+      if (!Number.isFinite(v)) { syncControls(); return; }
+      if (c.band) { const b = read(); b[j] = v; if (b[0] > b[1]) b[1 - j] = v; write(b); } else write(v);
+    }));
+    box.append(el("div", null, lab, ...ranges));
+  }
+  for (const k of CHECKS) $(k).addEventListener("change", e => { S.set[k] = e.target.checked; toCustom(); });
+  for (const b of document.querySelectorAll("[data-p]")) b.addEventListener("click", () => {
+    S.preset = b.dataset.p;
+    if (S.preset !== "custom") S.set = {...PRESETS[S.preset], high_band: PRESETS[S.preset].high_band.slice(), atr_band: PRESETS[S.preset].atr_band.slice()};
+    update();
+  });
+}
+function toCustom() { S.preset = "custom"; update(); }
+function syncControls() {
+  for (const c of SLIDERS) {
+    const vals = c.band ? S.set[c.k] : [S.set[c.k]];
+    vals.forEach((v, j) => {
+      const showv = c.money ? (v === 0 ? "off" : money(v).replace("₱", "")) : String(v);
+      if (document.activeElement !== c.ins[j]) c.ins[j].value = showv;
+      if (c.steps) { let idx = 0; c.steps.forEach((s, i) => { if (s <= v) idx = i; }); c.ranges[j].value = idx; }
+      else c.ranges[j].value = v;
+    });
+  }
+  for (const k of CHECKS) $(k).checked = S.set[k];
+  for (const b of document.querySelectorAll("[data-p]")) b.setAttribute("aria-pressed", String(b.dataset.p === S.preset));
+}
+
+// ------------------------------------------------------------------ compute
+const NICE = {
+  sma200: r => "Price below SMA200" + (r.pct_vs_sma200 !== null ? " by " + Math.abs(r.pct_vs_sma200).toFixed(1) + "%" : ""),
+  sma50: r => "Price below SMA50" + (r.pct_vs_sma50 !== null ? " by " + Math.abs(r.pct_vs_sma50).toFixed(1) + "%" : ""),
+  cross: () => "SMA50 below SMA200",
+  roc9: (r, s) => "ROC(9) " + spct(r.roc9) + " (needs " + s.roc9_min + "%)",
+  price: (r, s) => "Price " + price(r.close) + " (needs above ₱" + s.price_min + ")",
+  avg: (r, s) => "30-day avg value " + money(r.avg_value_30d) + " (needs above " + money(s.avg_value_min) + ")",
+  mcap: (r, s) => r.mcap === null ? "Market cap unavailable" : "Market cap " + money(r.mcap) + " (needs " + money(s.mcap_min) + ")",
+  vt: (r, s) => "Today's value " + money(r.value_today) + " (needs above " + money(s.value_today_min) + ")",
+  high: (r, s) => pct(r.pct_high_above_close) + " below 52-week high (allowed " + s.high_band[0] + "–" + s.high_band[1] + "%)",
+  atr: (r, s) => "ATR% " + pct(r.atr_pct14, 2) + " (allowed " + s.atr_band[0] + "–" + s.atr_band[1] + "%)",
+};
+const RULE_NAME = {sma200: "SMA200", sma50: "SMA50", cross: "SMA50 vs SMA200", roc9: "ROC(9)", price: "price", avg: "30-day value",
+  mcap: "market cap", vt: "today's value", high: "52-week high", atr: "ATR%"};
+function nice(f, r, s, date) {
+  if (f.rule === "stale") return "No trade on " + dateLabel(date);
+  if (f.rule === "fetch") return "Not scanned: " + r.fetch_error;
+  if (f.short) return "Not enough history for " + RULE_NAME[f.rule] + " (" + r.sessions + " sessions)";
+  return NICE[f.rule](r, s);
+}
+function evalDay(rows, date) {
+  const m = new Map();
+  for (const r of rows) m.set(r.symbol, {r, f: failures(r, S.set, date)});
+  return m;
+}
+let C = null; // last computation
+function compute() {
+  const cur = evalDay(S.rows, S.date);
+  const cmp = S.cmpRows ? evalDay(S.cmpRows, S.cmpDate) : null;
+  const pass = [], missed = [], dropped = [], notScanned = [], isNew = new Set();
+  for (const [sym, e] of cur) {
+    if (e.r.fetch_error) { notScanned.push(e.r); continue; }
+    if (!e.f.length) pass.push(e.r);
+    else if (e.f.length === 1 && e.f[0].rule !== "stale") missed.push(e);
+    if (cmp) {
+      const p = cmp.get(sym);
+      if (p && p.r.fetch_error) continue;
+      if (!e.f.length && (!p || p.f.length)) isNew.add(sym);
+      if (e.f.length && p && !p.f.length) dropped.push(e);
+    }
+  }
+  C = {pass, missed, dropped, notScanned, isNew, hasCmp: !!cmp};
+}
+
+// ------------------------------------------------------------------ render
+const COLS = [
+  {k: "symbol", t: "Symbol", hl: 1},
+  {k: "cci20", t: "CCI(20)", hl: 1, f: r => r.cci20 === null ? "—" : r.cci20.toFixed(1)},
+  {k: "close", t: "Price ₱", hl: 1, f: r => price(r.close)},
+  {k: "value_today", t: "Price × vol", hl: 1, x: 1, f: r => money(r.value_today)},
+  {k: "chg_pct", t: "Chg %", hl: 1, f: r => spct(r.chg_pct, 2), c: 1},
+  {k: "atr_pct14", t: "ATR% (14)", x: 1, f: r => pct(r.atr_pct14, 2)},
+  {k: "roc9", t: "ROC(9)", x: 1, f: r => spct(r.roc9), c: 1},
+  {k: "pct_high_above_close", t: "Below 52W high", x: 1, f: r => pct(r.pct_high_above_close)},
+  {k: "pct_vs_sma50", t: "vs SMA50", x: 1, f: r => spct(r.pct_vs_sma50), c: 1},
+  {k: "pct_vs_sma200", t: "vs SMA200", x: 1, f: r => spct(r.pct_vs_sma200), c: 1},
+  {k: "mcap", t: "Mkt cap", x: 1, f: r => money(r.mcap)},
+  {k: "avg_value_30d", t: "30D avg value", x: 1, f: r => money(r.avg_value_30d)},
+];
+function renderHead() {
+  const tr = $("thr"); tr.textContent = "";
+  for (const c of COLS) {
+    const on = S.sort.k === c.k;
+    const th = el("th", {cls: (c.hl ? "hl " : "") + (c.x ? "x" : ""), "aria-sort": on ? (S.sort.dir < 0 ? "descending" : "ascending") : "none"},
+      el("button", {type: "button", text: c.t + (on ? (S.sort.dir < 0 ? " ▼" : " ▲") : ""), onclick: () => {
+        S.sort = on ? {k: c.k, dir: -S.sort.dir} : {k: c.k, dir: c.k === "symbol" ? 1 : -1}; render();
+      }}));
+    tr.append(th);
+  }
+}
+function cell(c, r) {
+  if (c.k === "symbol") {
+    return el("td", {cls: "hl"}, r.symbol, C.isNew.has(r.symbol) ? el("span", {cls: "badge", text: "NEW"}) : null, el("span", {cls: "nm", text: r.name || ""}));
+  }
+  const v = r[c.k];
+  return el("td", {cls: (c.hl ? "hl " : "") + (c.x ? "x " : "") + (c.c && v ? (v > 0 ? "up" : "down") : "")}, c.f(r));
+}
+function tableRows() {
+  let rs = S.view === "new" ? C.pass.filter(r => C.isNew.has(r.symbol))
+    : S.view === "dropped" ? C.dropped.map(e => e.r) : S.view === "missed" ? C.missed.map(e => e.r) : C.pass;
+  const q = S.q.trim().toLowerCase();
+  if (q) rs = rs.filter(r => r.symbol.toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q));
+  const {k, dir} = S.sort;
+  return rs.slice().sort((a, b) => {
+    const x = a[k], y = b[k];
+    if (x === null || y === null) return x === null ? (y === null ? 0 : 1) : -1; // empty last
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * dir;
+  });
+}
+function render() {
+  if (!S.rows) return renderEmpty();
+  renderHead();
+  const tb = $("tb"), frag = document.createDocumentFragment(), rs = tableRows();
+  for (const r of rs) {
+    const open = S.open.has(r.symbol);
+    const tr = el("tr", {cls: "main", "aria-expanded": String(open)});
+    for (const c of COLS) tr.append(cell(c, r));
+    const dl = el("dl");
+    for (const c of COLS) if (c.x) dl.append(el("dt", {cls: "muted", text: c.t}), el("dd", {text: c.f(r)}));
+    const det = el("tr", {cls: "det" + (open ? " open" : "")}, el("td", {colspan: COLS.length}, dl));
+    tr.addEventListener("click", () => {
+      if (S.open.has(r.symbol)) S.open.delete(r.symbol); else S.open.add(r.symbol);
+      det.classList.toggle("open"); tr.setAttribute("aria-expanded", String(det.classList.contains("open")));
+    });
+    frag.append(tr, det);
+  }
+  tb.textContent = ""; tb.append(frag);
+  const empty = $("tblempty");
+  empty.hidden = rs.length > 0;
+  if (!rs.length) empty.textContent = S.q ? "No stocks match “" + S.q + "”. Clear the search."
+    : S.view === "pass" ? "No stocks pass. Loosen a slider or switch to Loose."
+    : S.view === "new" ? "No new stocks since the compare date." : S.view === "dropped" ? "Nothing dropped." : "No stocks missed by exactly one filter.";
+
+  const since = C.hasCmp ? " since " + dateLabel(S.cmpDate) : "";
+  const chips = $("chips"); chips.textContent = "";
+  for (const [v, n, t] of [["pass", C.pass.length, "pass"], ["new", C.hasCmp ? C.isNew.size : "—", "new" + since],
+    ["dropped", C.hasCmp ? C.dropped.length : "—", "dropped" + since], ["missed", C.missed.length, "missed by 1 filter"]])
+    chips.append(el("button", {type: "button", "aria-pressed": String(S.view === v), disabled: n === "—" ? "" : null,
+      onclick: () => { S.view = S.view === v && v !== "pass" ? "pass" : v; render(); }}, el("b", {text: n}), t));
+
+  const lst = (id, items, emptyText, why) => {
+    const t = $(id); t.textContent = "";
+    if (!items.length) { t.append(el("tr", null, el("td", {cls: "muted", colspan: 3, text: emptyText}))); return; }
+    for (const it of items) t.append(el("tr", null, el("td", {text: it.r ? it.r.symbol : it.symbol}),
+      el("td", {cls: "muted x", text: (it.r || it).name || ""}), el("td", {cls: why ? "why" : "muted", text: why ? why(it) : it.fetch_error})));
+  };
+  lst("missed", C.missed.slice().sort((a, b) => (b.r.cci20 ?? -1e9) - (a.r.cci20 ?? -1e9)), "No stocks missed by exactly one filter.",
+    e => nice(e.f[0], e.r, S.set, S.date));
+  $("droph").textContent = C.hasCmp ? "Dropped since " + dateLabel(S.cmpDate) : "Dropped";
+  lst("dropped", C.dropped, C.hasCmp ? "Nothing dropped." : "Pick a date in Compare with… to see what dropped.",
+    e => [...new Set(e.f.map(f => nice(f, e.r, S.set, S.date)))].join("; "));
+  $("nsh").textContent = "Not scanned today (" + C.notScanned.length + ")";
+  lst("ns", C.notScanned, "Every stock was scanned.");
+}
+function renderEmpty() {
+  $("thr").textContent = ""; $("tb").textContent = ""; $("chips").textContent = "";
+  for (const id of ["missed", "dropped", "ns"]) $(id).textContent = "";
+  $("tblempty").hidden = false;
+  $("tblempty").textContent = S.msg || (S.key ? "Loading results…" : "Paste your key above, or press Load CSV to open a results file.");
+}
+function renderHeader() {
+  const h = $("hdr"); h.textContent = "";
+  if (!S.rows) { h.textContent = S.key ? "Loading…" : "No data loaded"; return; }
+  const m = S.meta;
+  h.append("Data as of ", el("b", {text: dateLabel(S.date, true)}), " close");
+  if (m && m.final === false) h.append(el("span", {cls: "badge warn", text: "Provisional (intraday)"}));
+  const bits = [];
+  if (m && m.finished_at) bits.push("fetched " + timeLabel(m.finished_at));
+  const scanned = m ? m.scanned : S.rows.length, failed = m ? m.fetch_failed : S.rows.filter(r => r.fetch_error).length;
+  bits.push(scanned + " stocks scanned", failed + " had no data");
+  if (S.source) bits.push(S.source);
+  if (S.updated) bits.push((S.cached ? "cached, updating… " : "updated ") + new Date(S.updated).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}));
+  h.append(" · " + bits.join(" · "));
+}
+function bar(cls, ...kids) { $("bars").append(el("div", {cls: "bar fade " + cls, role: "status"}, ...kids)); }
+function renderBars() {
+  $("bars").textContent = "";
+  if (S.authErr) bar("err", "Key expired or wrong: paste a new one. ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
+  if (S.parity) bar("err", "Dashboard logic disagrees with screener for " + S.parity + " stock" + (S.parity === 1 ? "" : "s") + ". Trust the screener's own pass lists until this is fixed.");
+  if (S.fixtureBad) bar("err", "Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing).");
+  const st = S.status;
+  if (st && !S.source) {
+    const log = el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
+    const when = st.attempted_at ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
+    if (st.state === "failed") bar("err", "⚠ Last run failed" + when + ": " + (st.error || "unknown error") + ". Showing " + (S.date ? dateLabel(S.date) : "older") + " data. ", log);
+    else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
+    else if (st.state === "holiday" && st.attempted_at && manilaISO(new Date(st.attempted_at)) === manilaISO()) bar("mute", "PSE closed today.");
+    if (missedSchedule(st)) bar("", "⚠ Scheduled run did not run this evening. Press Run now, or ",
+      el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
+  }
+}
+function missedSchedule(st) {
+  const today = manilaISO(), m = manila(), dow = m.getUTCDay();
+  if (dow === 0 || dow === 6 || S.holidays.has(today)) return false;
+  if (m.getUTCHours() * 60 + m.getUTCMinutes() < 21 * 60 + 30) return false;
+  return !st.attempted_at || new Date(st.attempted_at) < new Date(today + "T18:30:00+08:00");
+}
+function renderCompare() {
+  const sel = $("cmp"); sel.textContent = "";
+  sel.append(el("option", {value: "", text: "Compare with…"}));
+  for (const e of S.index) if (e.date !== S.date) sel.append(el("option", {value: e.date, text: dateLabel(e.date, true) + (e.final ? "" : " (provisional)")}));
+  sel.append(el("option", {value: "@file", text: "A CSV file…"}));
+  if (S.cmpRows) {
+    if (![...sel.options].some(o => o.value === S.cmpDate)) sel.append(el("option", {value: S.cmpDate, text: dateLabel(S.cmpDate, true) + " (file)"}));
+    sel.value = S.cmpDate;
+  } else sel.value = "";
+}
+function update() { syncControls(); settingsToURL(); compute(); render(); }
+function renderAll() { renderHeader(); renderBars(); renderCompare(); if (S.rows) compute(); render(); }
+
+// ------------------------------------------------------------------ data
+class AuthError extends Error {}
+async function gh(path, opts = {}) {
+  const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body,
+    headers: {Authorization: "Bearer " + S.key, Accept: opts.json ? "application/vnd.github+json" : "application/vnd.github.raw+json"}});
+  if (r.status === 401 || r.status === 403) throw new AuthError();
+  return r;
+}
+const fileText = async (path) => { const r = await gh("/contents/" + path); if (r.status === 404) return null; if (!r.ok) throw new Error(path + ": HTTP " + r.status); return r.text(); };
+function setCurrent(csv, date, meta) {
+  S.rows = parseCSV(csv);
+  S.date = date || (S.rows.find(r => r.data_date) || {}).data_date || "unknown";
+  S.meta = meta || null;
+  S.parity = 0;
+  for (const r of S.rows) for (const p in PRESETS)
+    if (r["pass_" + p] !== null && !evaluate(r, PRESETS[p], S.date).length !== r["pass_" + p]) { S.parity++; break; }
+}
+function setCompare(csv, date) {
+  if (!csv) { S.cmpRows = null; S.cmpDate = null; return; }
+  S.cmpRows = parseCSV(csv);
+  S.cmpDate = date || (S.cmpRows.find(r => r.data_date) || {}).data_date;
+}
+function defaultCompare() {
+  const i = S.index.findIndex(e => e.date === S.date);
+  const prev = S.index.slice(i + 1).find(e => e.final);
+  return prev ? prev.date : null;
+}
+async function loadRemote() {
+  if (!S.key) return;
+  try {
+    const [csv, idx, st, hol] = await Promise.all(["latest.csv", "index.json", "status.json"].map(f => fileText("results/" + f)).concat(fileText("data/holidays.csv")));
+    S.authErr = false;
+    S.index = idx ? JSON.parse(idx) : [];
+    S.status = st ? JSON.parse(st) : null;
+    S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
+    if (!csv) { S.rows = null; S.msg = "No results yet: press Run now."; renderAll(); return; }
+    const date = S.index.length ? S.index[0].date : null;
+    setCurrent(csv, date, S.index[0]);
+    S.source = ""; S.updated = Date.now(); S.cached = false; S.msg = null;
+    const cd = S.cmpDate && S.cmpDate !== S.date && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
+    const ccsv = cd ? await fileText("results/" + cd + ".csv") : null;
+    setCompare(ccsv, cd);
+    store.set("cache", {csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
+    renderAll();
+    checkFixture();
+  } catch (e) {
+    if (e instanceof AuthError) S.authErr = true;
+    else S.msg = S.rows ? null : "Couldn't reach GitHub (" + e.message + "). Check your connection and reload.";
+    S.cached = false;
+    renderAll();
+  }
+}
+async function checkFixture() {
+  try {
+    const t = await fileText("tests/fixtures/filter_cases.json");
+    if (!t) return;
+    const spec = JSON.parse(t), sets = {...PRESETS, custom: spec.custom};
+    S.fixtureBad = spec.cases.filter(c => {
+      const why = evaluate(c.row, sets[c.preset], spec.data_date);
+      return !why.length !== c.pass || (c.reason && !why.includes(c.reason));
+    }).length;
+    if (S.fixtureBad) renderBars();
+  } catch { /* the CSV parity check still runs */ }
+}
+function loadCache() {
+  const c = store.get("cache", null);
+  if (!c || !S.key) return;
+  S.index = c.index || []; S.status = c.status; S.holidays = new Set(c.holidays || []);
+  setCurrent(c.csv, S.index.length ? S.index[0].date : null, S.index[0]);
+  if (c.cmp) setCompare(c.cmp.csv, c.cmp.date);
+  S.updated = c.at; S.cached = true;
+}
+function readFile(input) {
+  return new Promise((res, rej) => {
+    const f = input.files[0]; if (!f) return rej(new Error("no file"));
+    const fr = new FileReader(); fr.onload = () => res({name: f.name, text: fr.result}); fr.onerror = () => rej(fr.error); fr.readAsText(f);
+    input.value = "";
+  });
+}
+const looksLikeResults = t => /^﻿?symbol,name,data_date,/.test(t);
+
+// ------------------------------------------------------------------ run now
+let running = false;
+async function runNow() {
+  if (running) return;
+  if (!S.key) { showKey(true); return; }
+  running = true; $("run").disabled = true;
+  const st = t => { $("runst").textContent = ""; $("runst").append(...[].concat(t)); };
+  try {
+    st("Starting…");
+    const T = Date.now();
+    const r = await gh("/actions/workflows/screen.yml/dispatches", {method: "POST", json: true, body: JSON.stringify({ref: "main"})});
+    if (!r.ok && r.status !== 204) throw new Error("dispatch HTTP " + r.status);
+    let id = null;
+    if (r.status === 200) { try { const j = await r.json(); id = j.workflow_run_id || j.id || null; } catch { /* no body */ } }
+    const since = new Date(T - 5000).toISOString().replace(/\.\d+Z$/, "Z");
+    const sleep = ms => new Promise(f => setTimeout(f, ms));
+    while (!id && Date.now() - T < 120e3) {
+      await sleep(5000);
+      const q = await gh("/actions/workflows/screen.yml/runs?event=workflow_dispatch&per_page=5&created=" + encodeURIComponent(">=" + since), {json: true});
+      if (q.ok) { const j = await q.json(); if (j.workflow_runs && j.workflow_runs.length) id = j.workflow_runs[j.workflow_runs.length - 1].id; }
+    }
+    if (!id) { st(["Run did not start: ", el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"})]); return; }
+    for (;;) {
+      const q = await gh("/actions/runs/" + id, {json: true});
+      if (q.ok) {
+        const run = await q.json();
+        if (run.status === "completed") {
+          if (run.conclusion === "success") st("Done");
+          else st(["Failed (", el("a", {href: safeUrl(run.html_url), target: "_blank", rel: "noopener noreferrer", text: "open log"}), ")"]);
+          await loadRemote();
+          return;
+        }
+        st("Running…");
+      }
+      await sleep(15000);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { S.authErr = true; renderBars(); st("Key can't run the screener"); }
+    else st("Run failed to start: " + e.message);
+  } finally { running = false; $("run").disabled = false; }
+}
+
+// ------------------------------------------------------------------ key panel
+function showKey(open) {
+  const p = $("keyp"); p.hidden = !open; $("keybtn").setAttribute("aria-expanded", String(open));
+  $("keyforget").hidden = !S.key;
+  $("keyh").textContent = S.key ? "Your key" : "Connect your private results";
+  if (open) $("keyin").focus();
+}
+
+// ------------------------------------------------------------------ wire up
+function init() {
+  const s = settingsFromURL();
+  if (s && s.set && (s.preset === "custom" || PRESETS[s.preset])) { S.preset = s.preset; S.set = {...STRICT, ...s.set}; }
+  if (S.preset !== "custom") S.set = {...PRESETS[S.preset]};
+  buildControls(); syncControls(); settingsToURL();
+  $("q").addEventListener("input", e => { S.q = e.target.value; if (S.rows) render(); });
+  $("run").addEventListener("click", runNow);
+  $("load").addEventListener("click", () => $("file").click());
+  $("keyload").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", async () => {
+    try {
+      const f = await readFile($("file"));
+      if (!looksLikeResults(f.text)) { alert("That file isn't a screener results CSV."); return; }
+      setCurrent(f.text, null, S.index.find(e => e.date === (parseCSV(f.text)[0] || {}).data_date) || null);
+      S.source = "from " + f.name; S.updated = null; S.cached = false; S.msg = null;
+      if (S.cmpDate === S.date) setCompare(null);
+      showKey(false); renderAll();
+    } catch { /* cancelled */ }
+  });
+  $("cmp").addEventListener("change", async e => {
+    const v = e.target.value;
+    if (v === "@file") { $("cfile").click(); renderCompare(); return; }
+    if (!v) { setCompare(null); renderAll(); return; }
+    try { const t = await fileText("results/" + v + ".csv"); setCompare(t, v); }
+    catch (err) { if (err instanceof AuthError) S.authErr = true; setCompare(null); }
+    renderAll();
+  });
+  $("cfile").addEventListener("change", async () => {
+    try {
+      const f = await readFile($("cfile"));
+      if (!looksLikeResults(f.text)) { alert("That file isn't a screener results CSV."); return; }
+      setCompare(f.text, null); renderAll();
+    } catch { /* cancelled */ }
+  });
+  $("keybtn").addEventListener("click", () => showKey($("keyp").hidden));
+  $("keysave").addEventListener("click", () => {
+    const k = $("keyin").value.trim(); if (!k) return;
+    S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; showKey(false); renderAll(); loadRemote();
+  });
+  $("keyforget").addEventListener("click", () => {
+    S.key = ""; store.del("key"); store.del("cache");
+    Object.assign(S, {rows: null, index: [], status: null, cmpRows: null, cmpDate: null, source: "", msg: null, authErr: false});
+    showKey(true); renderAll();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    if (e.key === "/") { e.preventDefault(); $("q").focus(); }
+    else if (e.key === "r" && confirm("Run the screener now?")) runNow();
+  });
+  const hdr = document.querySelector("header");
+  new ResizeObserver(() => document.documentElement.style.setProperty("--hh", hdr.offsetHeight + "px")).observe(hdr);
+  loadCache();
+  if (!S.key && !S.rows) showKey(true);
+  renderAll();
+  loadRemote();
+}
+init();
+</script>
+</body>
+</html>
