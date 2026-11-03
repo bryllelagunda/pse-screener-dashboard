@@ -39,10 +39,10 @@ h2{font-size:16px;margin:0 0 8px}
 .ctl label{display:block}
 .lab{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .lab b{color:var(--text)}
-.lab input{width:84px;min-height:34px;text-align:right}
+.lab input{width:84px;min-height:44px;text-align:right}
 .lab .row{flex-wrap:nowrap}
 .lab .row input{width:60px}
-input[type=range]{width:100%;height:32px;margin:4px 0 0;accent-color:var(--accent)}
+input[type=range]{width:100%;height:44px;margin:4px 0 0;accent-color:var(--accent)}
 .checks label{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-right:14px}
 .checks input{width:20px;height:20px;accent-color:var(--accent)}
 .chips button{border-radius:22px}
@@ -51,7 +51,7 @@ table{width:100%;border-collapse:collapse}
 th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
 thead th{position:sticky;top:var(--hh);background:var(--panel);z-index:2;font-size:12px;font-weight:600;color:var(--muted);padding:0}
-thead th button{all:unset;display:block;width:100%;box-sizing:border-box;padding:12px 6px;cursor:pointer;text-align:inherit}
+thead th button{all:unset;display:block;width:100%;box-sizing:border-box;min-height:44px;padding:14px 6px;cursor:pointer;text-align:inherit}
 thead th button:focus-visible{outline:2px solid var(--accent)}
 th.hl,td.hl{font-weight:700}
 thead th.hl button{color:var(--text)}
@@ -526,9 +526,9 @@ function renderHeader() {
 function bar(cls, ...kids) { $("bars").append(el("div", {cls: "bar fade " + cls, role: "status"}, ...kids)); }
 function renderBars() {
   $("bars").textContent = "";
-  if (S.authErr) bar("err", "Key expired or wrong: paste a new one. ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
+  if (S.authErr) bar("err", "Key expired or wrong: paste a new one with access to " + REPO + ". ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
   if (S.parity) bar("err", "Dashboard logic disagrees with screener for " + S.parity + " stock" + (S.parity === 1 ? "" : "s") + ". Trust the screener's own pass lists until this is fixed.");
-  if (S.fixtureBad) bar("err", "Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing).");
+  if (S.fixtureBad) bar("err", "Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing). Trust the screener's own pass lists until this is fixed.");
   const st = S.status;
   if (st && !S.source) {
     const log = el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
@@ -594,7 +594,8 @@ async function loadRemote() {
     S.index = idx ? JSON.parse(idx) : [];
     S.status = st ? JSON.parse(st) : null;
     S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
-    if (!csv) { S.rows = null; S.msg = "No results yet: press Run now."; renderAll(); return; }
+    if (!csv && !idx && !hol) { S.authErr = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; renderAll(); return; } // a key without access to the repo gets 404s
+    if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; renderAll(); return; }
     const date = S.index.length ? S.index[0].date : null;
     setCurrent(csv, date, S.index[0]);
     S.source = ""; S.updated = Date.now(); S.cached = false; S.msg = null;
@@ -677,8 +678,8 @@ async function runNow() {
       await sleep(15000);
     }
   } catch (e) {
-    if (e instanceof AuthError) { S.authErr = true; renderBars(); st("Key can't run the screener"); }
-    else st("Run failed to start: " + e.message);
+    if (e instanceof AuthError) { S.authErr = true; renderBars(); st("Key can't run the screener: give it Actions read and write"); }
+    else st("Run failed to start (" + e.message + "). Try again, or run it from GitHub Actions.");
   } finally { running = false; $("run").disabled = false; }
 }
 
