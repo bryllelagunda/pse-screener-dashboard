@@ -690,8 +690,8 @@ function renderBars() {
     else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
     else if (closedToday(st)) bar("mute", "PSE closed today.");
   }
-  // Not from a stale cache (the refresh decides), nor before anything has loaded
-  if (!S.source && !S.cached && (st || S.index.length) && missedRun(st, S.index, S.holidays))
+  // Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
+  if (!S.source && !S.cached && !S.refreshErr && !S.authErr && (st || S.index.length) && missedRun(st, S.index, S.holidays))
     bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
       el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
 }
@@ -785,7 +785,7 @@ async function checkFixture(my) {
 function loadCache() {
   const c = store.get("cache", null);
   if (!c || !S.key || typeof c.csv !== "string") return;
-  S.index = cleanIndex(c.index); S.status = c.status && typeof c.status === "object" ? c.status : null;
+  S.index = cleanIndex(c.index); S.status = c.status && typeof c.status === "object" && !Array.isArray(c.status) ? c.status : null;
   S.holidays = new Set(Array.isArray(c.holidays) ? c.holidays : []);
   setCurrent(c.csv);
   if (c.cmp && cmpOk(c.cmp.date)) setCompare(c.cmp.csv, c.cmp.date);
