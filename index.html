@@ -335,15 +335,17 @@ function dateLabel(iso, withYear) {
 const manila = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3); // Asia/Manila is UTC+8, no DST
 const manilaISO = d => manila(d).toISOString().slice(0, 10);
 // The session the run was for is today; a status.json from before expected_date existed uses the day it ran
+const validTime = t => typeof t === "string" && !isNaN(Date.parse(t));
+const cleanIndex = v => Array.isArray(v) ? v.filter(e => e && typeof e === "object") : []; // a bad file or cache can't break the page
 const closedToday = (st, now = new Date()) => st.state === "holiday" &&
-  (st.expected_date || (st.attempted_at ? manilaISO(new Date(st.attempted_at)) : null)) === manilaISO(now);
+  (st.expected_date || (validTime(st.attempted_at) ? manilaISO(new Date(st.attempted_at)) : null)) === manilaISO(now);
 // After 8:50am Tue–Sat (the 7:50am backup plus an hour): the previous weekday traded, has no final file,
-// and nothing has run since 7:50am
+// and nothing has run since 7:50am. st is null when there is no status.json.
 function missedRun(st, index, holidays, now = new Date()) {
   const m = manila(now), prev = manilaISO(new Date(now.getTime() - 864e5));
   if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 8 * 60 + 50 || holidays.has(prev)) return false;
-  if (index.some(e => e && e.date === prev && e.final)) return false;
-  return !st.attempted_at || new Date(st.attempted_at) < new Date(manilaISO(now) + "T07:50:00+08:00");
+  if (index.some(e => e && e.date === prev && e.final === true)) return false;
+  return !st || !validTime(st.attempted_at) || new Date(st.attempted_at) < new Date(manilaISO(now) + "T07:50:00+08:00");
 }
 /* STATUS-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
@@ -683,13 +685,15 @@ function renderBars() {
   const st = S.status;
   if (st && !S.source) {
     const log = el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
-    const when = st.attempted_at ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
+    const when = validTime(st.attempted_at) ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
     if (st.state === "failed") bar("err", "⚠ Last run failed" + when + ": " + (st.error || "unknown error") + ". Showing " + (S.date ? dateLabel(S.date) : "older") + " data. ", log);
     else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
     else if (closedToday(st)) bar("mute", "PSE closed today.");
-    if (missedRun(st, S.index, S.holidays)) bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
-      el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
   }
+  // Not from a stale cache (the refresh decides), nor before anything has loaded
+  if (!S.source && !S.cached && (st || S.index.length) && missedRun(st, S.index, S.holidays))
+    bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
+      el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
 }
 function renderCompare() {
   const sel = $("cmp"); sel.textContent = "";
@@ -743,8 +747,8 @@ async function loadRemote(replaceFile) {
     const [csv, idx, st, hol] = await Promise.all(["latest.csv", "index.json", "status.json"].map(f => fileText("results/" + f)).concat(fileText("data/holidays.csv")));
     if (stale()) return;
     S.authErr = false; S.refreshErr = null;
-    S.index = idx ? JSON.parse(idx) : [];
-    S.status = st ? JSON.parse(st) : null;
+    S.index = cleanIndex(idx ? JSON.parse(idx) : []);
+    const sj = st ? JSON.parse(st) : null; S.status = sj && typeof sj === "object" && !Array.isArray(sj) ? sj : null;
     S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
     if (!csv && !idx && !hol) { S.authErr = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; renderAll(); return; } // a key without access to the repo gets 404s
     if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; renderAll(); return; }
@@ -781,7 +785,8 @@ async function checkFixture(my) {
 function loadCache() {
   const c = store.get("cache", null);
   if (!c || !S.key || typeof c.csv !== "string") return;
-  S.index = Array.isArray(c.index) ? c.index : []; S.status = c.status || null; S.holidays = new Set(c.holidays || []);
+  S.index = cleanIndex(c.index); S.status = c.status && typeof c.status === "object" ? c.status : null;
+  S.holidays = new Set(Array.isArray(c.holidays) ? c.holidays : []);
   setCurrent(c.csv);
   if (c.cmp && cmpOk(c.cmp.date)) setCompare(c.cmp.csv, c.cmp.date);
   S.updated = c.at; S.cached = true;
@@ -914,6 +919,7 @@ function init() {
   });
   const hdr = document.querySelector("header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--hh", hdr.offsetHeight + "px")).observe(hdr);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) renderBars(); }); // the 8:50am and midnight edges
   loadCache();
   if (!S.key && !S.rows) showKey(true);
   renderAll();

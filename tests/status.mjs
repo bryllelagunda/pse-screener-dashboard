@@ -11,7 +11,7 @@ import {fileURLToPath} from "node:url";
 const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
 const i = html.indexOf("/* STATUS-START"), j = html.indexOf("/* STATUS-END */");
 if (i < 0 || j < 0) throw new Error("STATUS markers not found");
-const {closedToday, missedRun} = new Function(html.slice(i, j) + "; return {closedToday, missedRun};")();
+const {closedToday, missedRun, cleanIndex} = new Function(html.slice(i, j) + "; return {closedToday, missedRun, cleanIndex};")();
 
 let bad = 0, n = 0;
 const eq = (got, want, what) => { n++; if (got !== want) { bad++; console.log(`FAIL ${what}: got ${got}, want ${want}`); } };
@@ -48,8 +48,15 @@ eq(missedRun({state: "ok", attempted_at: iso("2026-11-27T18:31")}, final("2026-1
   "Tuesday after a Monday holiday, backup never ran: still no warning (no Monday session)");
 eq(missedRun({state: "ok", attempted_at: iso("2026-11-30T18:31")}, final("2026-11-27"), none, at("2026-12-01T09:10")), true,
   "same Tuesday without the holiday listed: warns");
-// Malformed index entries are skipped, not thrown on
+// Missing or malformed data
 eq(missedRun(wedEve, [null, {date: "2026-11-04"}], none, at("2026-11-05T09:10")), true, "null or non-final entries don't count");
+eq(missedRun(wedEve, [{date: "2026-11-04", final: "false"}], none, at("2026-11-05T09:10")), true, "final must be true, not a truthy string");
+eq(missedRun(null, noWed, none, at("2026-11-05T09:10")), true, "no status.json at all: warns");
+eq(missedRun({state: "ok", attempted_at: "garbage"}, noWed, none, at("2026-11-05T09:10")), true, "unreadable attempted_at counts as no run");
+eq(JSON.stringify(cleanIndex([null, 5, "x", {date: "2026-11-04", final: true}])), JSON.stringify([{date: "2026-11-04", final: true}]), "cleanIndex keeps objects only");
+eq(JSON.stringify([cleanIndex({}), cleanIndex(null)]), "[[],[]]", "cleanIndex turns a non-array into no entries");
+// The warning is about this morning's backup, so it stays all day; there is no rule about the 6:30pm run
+eq(missedRun(wedEve, noWed, none, at("2026-11-05T21:45")), true, "Thu 9:45pm, backup never ran and Wed still missing: still warns");
 
 // closedToday
 eq(closedToday({state: "holiday", expected_date: "2026-11-30", attempted_at: iso("2026-11-30T18:31")}, at("2026-11-30T19:00")), true,
@@ -60,6 +67,8 @@ eq(closedToday({state: "holiday", expected_date: "2026-11-30", attempted_at: iso
 eq(closedToday({state: "holiday", attempted_at: iso("2026-11-30T18:31")}, at("2026-11-30T19:00")), true, "old status without expected_date, ran today: shows");
 eq(closedToday({state: "holiday", attempted_at: iso("2026-11-27T18:31")}, at("2026-11-30T19:00")), false, "old status without expected_date, ran another day: hidden");
 eq(closedToday({state: "holiday"}, at("2026-11-30T19:00")), false, "no dates at all: hidden");
+eq(closedToday({state: "holiday", expected_date: "2026-11-30", attempted_at: "garbage"}, at("2026-11-30T19:00")), true, "a bad attempted_at doesn't hide a valid expected_date");
+eq(closedToday({state: "holiday", attempted_at: "garbage"}, at("2026-11-30T19:00")), false, "old status with a bad attempted_at: hidden, no crash");
 eq(closedToday({state: "ok", expected_date: "2026-11-30"}, at("2026-11-30T19:00")), false, "only for holiday runs");
 
 if (bad) { console.log(`${bad} of ${n} checks failed`); process.exit(1); }
