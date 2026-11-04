@@ -331,8 +331,21 @@ function dateLabel(iso, withYear) {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US",
     {weekday: "short", month: "short", day: "numeric", year: withYear ? "numeric" : undefined, timeZone: "UTC"});
 }
+/* STATUS-START: run-schedule lines in the status bar (tests/status.mjs checks it) */
 const manila = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3); // Asia/Manila is UTC+8, no DST
 const manilaISO = d => manila(d).toISOString().slice(0, 10);
+// The session the run was for is today; a status.json from before expected_date existed uses the day it ran
+const closedToday = (st, now = new Date()) => st.state === "holiday" &&
+  (st.expected_date || (st.attempted_at ? manilaISO(new Date(st.attempted_at)) : null)) === manilaISO(now);
+// After 8:50am Tue–Sat (the 7:50am backup plus an hour): the previous weekday traded, has no final file,
+// and nothing has run since 7:50am
+function missedRun(st, index, holidays, now = new Date()) {
+  const m = manila(now), prev = manilaISO(new Date(now.getTime() - 864e5));
+  if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 8 * 60 + 50 || holidays.has(prev)) return false;
+  if (index.some(e => e && e.date === prev && e.final)) return false;
+  return !st.attempted_at || new Date(st.attempted_at) < new Date(manilaISO(now) + "T07:50:00+08:00");
+}
+/* STATUS-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
 const safeUrl = u => typeof u === "string" && /^https:\/\/github\.com\//.test(u) ? u : "https://github.com/" + OWNER + "/" + REPO + "/actions";
 
@@ -673,16 +686,10 @@ function renderBars() {
     const when = st.attempted_at ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
     if (st.state === "failed") bar("err", "⚠ Last run failed" + when + ": " + (st.error || "unknown error") + ". Showing " + (S.date ? dateLabel(S.date) : "older") + " data. ", log);
     else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
-    else if (st.state === "holiday" && st.attempted_at && manilaISO(new Date(st.attempted_at)) === manilaISO()) bar("mute", "PSE closed today.");
-    if (missedSchedule(st)) bar("", "⚠ Scheduled run did not run this evening. Press Run now, or ",
+    else if (closedToday(st)) bar("mute", "PSE closed today.");
+    if (missedRun(st, S.index, S.holidays)) bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
       el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
   }
-}
-function missedSchedule(st) {
-  const today = manilaISO(), m = manila(), dow = m.getUTCDay();
-  if (dow === 0 || dow === 6 || S.holidays.has(today)) return false;
-  if (m.getUTCHours() * 60 + m.getUTCMinutes() < 21 * 60 + 30) return false;
-  return !st.attempted_at || new Date(st.attempted_at) < new Date(today + "T18:30:00+08:00");
 }
 function renderCompare() {
   const sel = $("cmp"); sel.textContent = "";
