@@ -68,6 +68,10 @@ eq(missedRun({...wedEve, slot: "Morning"}, noWed, none, at("2026-11-05T17:10")),
 eq(missedRun({...wedEve, slot: 7}, noWed, none, at("2026-11-05T17:10")), false, "a non-text slot: no warning");
 eq(missedRun({...backup("ok"), expected_date: undefined}, noWed, none, at("2026-11-05T17:10")), false, "a backup without expected_date: no warning");
 eq(missedRun(backup("ok", "Nov 4"), noWed, none, at("2026-11-05T17:10")), false, "a backup with a malformed expected_date: no warning");
+eq(missedRun(backup("ok", "2026-02-30"), noWed, none, at("2026-11-05T17:10")), false, "a backup with an impossible date: no warning");
+eq(missedRun({...wedEve, expected_date: "garbage"}, noWed, none, at("2026-11-05T17:10")), false, "an evening run with a malformed expected_date: no warning");
+eq(missedRun({...runNow, expected_date: 42}, noWed, none, at("2026-11-05T17:10")), false, "a Run now with a non-text expected_date: no warning");
+eq(missedRun({...runNow, expected_date: null}, noWed, none, at("2026-11-05T17:10")), false, "a run that crashed before choosing its session: no warning (its failed line shows)");
 eq(JSON.stringify(cleanIndex([null, 5, "x", {date: "2026-11-04", final: true}])), JSON.stringify([{date: "2026-11-04", final: true}]), "cleanIndex keeps objects only");
 eq(JSON.stringify([cleanIndex({}), cleanIndex(null)]), "[[],[]]", "cleanIndex turns a non-array into no entries");
 // The warning is about this morning's backup, so it stays into the evening; there is no rule about the 6:30pm run

@@ -343,16 +343,14 @@ const closedToday = (st, now = new Date()) => st.state === "holiday" &&
 // the previous weekday traded, has no final file, and status.json is not a 7:50am-backup attempt for it.
 // A Run now doesn't hide it, unless it saved the final file. st is null when there is no status.json;
 // one from before slot existed (no "slot" key), or with a malformed slot or expected_date, never warns.
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(d + "T00:00:00Z").toISOString().startsWith(d);
 function missedRun(st, index, holidays, now = new Date()) {
   const m = manila(now), prev = manilaISO(new Date(now.getTime() - 864e5));
   if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 16 * 60 + 50 || holidays.has(prev)) return false;
   if (index.some(e => e && e.date === prev && e.final === true)) return false;
   if (!st) return true;
-  if (!("slot" in st) || ![null, "evening", "morning"].includes(st.slot)) return false;
-  if (st.slot !== "morning") return true;
-  if (typeof st.expected_date !== "string" || !ISO_DAY.test(st.expected_date)) return false;
-  return st.expected_date !== prev;
+  if (!("slot" in st) || ![null, "evening", "morning"].includes(st.slot) || !isDay(st.expected_date)) return false;
+  return st.slot !== "morning" || st.expected_date !== prev;
 }
 /* STATUS-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
@@ -365,7 +363,7 @@ const S = {
   index: [], status: null, holidays: new Set(),
   cmpRows: null, cmpDate: null,
   preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", open: new Set(),
-  parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null,
+  parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null, missed: false,
   screens: loadScreens(store.get("screens", [])), screen: null, dirty: false, fopen: store.get("filtersOpen", true) !== false,
 };
 
@@ -683,6 +681,9 @@ function renderHeader() {
   h.append(" · " + bits.join(" · "));
 }
 function bar(cls, ...kids) { $("bars").append(el("div", {cls: "bar fade " + cls, role: "status"}, ...kids)); }
+// Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
+const showMissed = () => !S.source && !S.cached && !S.refreshErr && !S.authErr && !!(S.status || S.index.length) &&
+  missedRun(S.status, S.index, S.holidays);
 function renderBars() {
   $("bars").textContent = "";
   if (S.authErr) bar("err", "Key expired or wrong: paste a new one with access to " + REPO + ". ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
@@ -697,8 +698,7 @@ function renderBars() {
     else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
     else if (closedToday(st)) bar("mute", "PSE closed today.");
   }
-  // Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
-  if (!S.source && !S.cached && !S.refreshErr && !S.authErr && (st || S.index.length) && missedRun(st, S.index, S.holidays))
+  if (S.missed = showMissed())
     bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
       el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
 }
@@ -926,7 +926,8 @@ function init() {
   });
   const hdr = document.querySelector("header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--hh", hdr.offsetHeight + "px")).observe(hdr);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) renderBars(); }); // the 4:50pm and midnight edges
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) renderBars(); });
+  setInterval(() => { if (!document.hidden && showMissed() !== S.missed) renderBars(); }, 60e3); // the 4:50pm and midnight edges, tab left open
   loadCache();
   if (!S.key && !S.rows) showKey(true);
   renderAll();
