@@ -32,9 +32,11 @@ anywhere, and **Forget key** leaves them in place. Shared links still carry the 
 
 Shown only when it needs your attention, from the private repository's `results/status.json`:
 a failed run, no new PSE session yet, or "PSE closed today." (when the run's session is a
-holiday today). After **8:50am Tuesday to Saturday** it also says "Scheduled run did not run
-this morning" when the previous weekday traded, has no final results file and nothing has run
-since the 7:50am backup. Hidden while a CSV you opened is shown.
+holiday today). After **4:50pm Tuesday to Saturday** it also says "Scheduled run did not run
+this morning" when the previous weekday traded, has no final results file and the 7:50am backup
+has not run for it. The cutoff is the backup's start plus 9 hours, because GitHub starts
+scheduled runs up to about 7h40m late. A Run now hides the line only if it saves the final file.
+Hidden while a CSV you opened is shown.
 
 ## Checks
 

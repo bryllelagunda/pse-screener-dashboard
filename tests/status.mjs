@@ -1,8 +1,9 @@
 // Run-schedule lines in the status bar: the missed-run warning and "PSE closed today."
 // Runs in CI (no private files needed): node tests/status.mjs
-// Value: protects=when each line shows, against the 6:30pm run plus 7:50am Tue–Sat backup (screener RD-2);
-//   fails_when=the warning shows before 8:50am, on Sun/Mon, after a holiday, when the final file is there or a run
-//   happened since 7:50am, or misses a real gap; "closed today" shows for a past session or misses today's;
+// Value: protects=when each line shows, against the 6:30pm run plus 7:50am Tue–Sat backup (screener RD-2; build
+//   decision: cutoff 4:50pm, the backup's start plus 9 hours);
+//   fails_when=the warning shows before 4:50pm, on Sun/Mon, after a holiday, when the final file is there, when the
+//   backup for that session ran, or for an old/malformed status.json; or misses a real gap, or a Run now hides it; "closed today" shows for a past session or misses today's;
 //   no_claim=the bar's markup and links (checked by hand in a browser).
 import {readFileSync} from "node:fs";
 import {join, dirname} from "node:path";
@@ -20,43 +21,59 @@ const iso = s => at(s).toISOString();
 const final = (...dates) => dates.map(date => ({date, final: true}));
 const none = new Set();
 
-// missedRun: Thu 2026-11-05; Wed 2026-11-04 has no final file; last run Wed 6:31pm
-const wedEve = {state: "no_new_session", attempted_at: iso("2026-11-04T18:31")};
+// missedRun: Thu 2026-11-05; Wed 2026-11-04 has no final file; the last attempt was Wed's 6:30pm run
+const wedEve = {state: "no_new_session", attempted_at: iso("2026-11-05T01:42"), trigger: "schedule", slot: "evening", expected_date: "2026-11-04"};
 const noWed = final("2026-11-03");
-eq(missedRun(wedEve, noWed, none, at("2026-11-05T09:10")), true, "Thu 9:10am, Wed missing, nothing since 7:50am: warns");
-eq(missedRun(wedEve, noWed, none, at("2026-11-05T08:49")), false, "8:49am: too early");
-eq(missedRun(wedEve, noWed, none, at("2026-11-05T08:50")), true, "8:50am exactly: warns");
-eq(missedRun(wedEve, final("2026-11-04", "2026-11-03"), none, at("2026-11-05T09:10")), false, "Wed's final file is there: no warning");
-eq(missedRun(wedEve, [{date: "2026-11-04", final: false}], none, at("2026-11-05T09:10")), true, "a provisional Wed file still warns");
-eq(missedRun({state: "no_new_session", attempted_at: iso("2026-11-05T07:52")}, noWed, none, at("2026-11-05T09:10")), false,
-  "the backup ran at 7:52am (no new session): no warning, its own line covers it");
-eq(missedRun({state: "failed", attempted_at: iso("2026-11-05T07:50")}, noWed, none, at("2026-11-05T09:10")), false, "a run at 7:50am exactly counts");
-eq(missedRun({state: "ok", attempted_at: iso("2026-11-05T07:49")}, noWed, none, at("2026-11-05T09:10")), true, "a run at 7:49am does not count");
-eq(missedRun({state: "ok"}, noWed, none, at("2026-11-05T09:10")), true, "no attempted_at: warns");
-eq(missedRun({state: "ok", attempted_at: iso("2026-11-04T07:53")}, final("2026-11-03"), none, at("2026-11-04T21:45")), false,
-  "Wed 9:45pm, evening run never came: no evening warning");
+eq(missedRun(wedEve, noWed, none, at("2026-11-05T17:10")), true, "Thu 5:10pm, Wed missing, no backup run for Wed: warns");
+eq(missedRun(wedEve, noWed, none, at("2026-11-05T16:49")), false, "4:49pm: too early");
+eq(missedRun(wedEve, noWed, none, at("2026-11-05T16:50")), true, "4:50pm exactly: warns");
+eq(missedRun(wedEve, noWed, none, at("2026-11-05T09:10")), false, "9:10am (the old 8:50am cutoff): no warning yet");
+eq(missedRun(wedEve, final("2026-11-04", "2026-11-03"), none, at("2026-11-05T17:10")), false, "Wed's final file is there: no warning");
+eq(missedRun(wedEve, [{date: "2026-11-04", final: false}], none, at("2026-11-05T17:10")), true, "a provisional Wed file still warns");
+// Which attempt hides it: only the 7:50am backup for that session
+const backup = (state, expected_date) => ({state, attempted_at: iso("2026-11-05T15:21"), trigger: "schedule", slot: "morning", expected_date});
+eq(missedRun(backup("no_new_session", "2026-11-04"), noWed, none, at("2026-11-05T17:10")), false,
+  "the backup for Wed ran (no new session): no warning, its own line covers it");
+eq(missedRun(backup("failed", "2026-11-04"), noWed, none, at("2026-11-05T17:10")), false, "the backup for Wed failed: its own line covers it");
+eq(missedRun(backup("no_new_session", "2026-11-03"), noWed, none, at("2026-11-05T17:10")), true,
+  "a backup for an older session (Tue) doesn't count for Wed");
+const runNow = {state: "no_new_session", attempted_at: iso("2026-11-05T16:00"), trigger: "workflow_dispatch", slot: null, expected_date: "2026-11-04"};
+eq(missedRun(runNow, noWed, none, at("2026-11-05T17:10")), true, "a Run now (no new session) doesn't hide a missing backup");
+eq(missedRun({...runNow, state: "ok"}, final("2026-11-04", "2026-11-03"), none, at("2026-11-05T17:10")), false,
+  "a Run now that saved Wed's final file: no warning (the file decides)");
+eq(missedRun({...wedEve, state: "ok", expected_date: "2026-11-05", attempted_at: iso("2026-11-05T18:33")}, noWed, none, at("2026-11-05T19:00")), true,
+  "Thu's evening run doesn't hide a missing Wed backup");
 // Days of the week
-const friEve = {state: "ok", attempted_at: iso("2026-11-06T18:31")};
-eq(missedRun(friEve, final("2026-11-05"), none, at("2026-11-07T09:10")), true, "Sat 9:10am, Fri missing: warns");
-eq(missedRun(friEve, final("2026-11-05"), none, at("2026-11-08T09:10")), false, "Sunday: never");
-eq(missedRun(friEve, final("2026-11-05"), none, at("2026-11-09T09:10")), false, "Monday: never (no Sunday session)");
+const friEve = {state: "ok", attempted_at: iso("2026-11-06T18:31"), trigger: "schedule", slot: "evening", expected_date: "2026-11-06"};
+eq(missedRun(friEve, final("2026-11-05"), none, at("2026-11-07T17:10")), true, "Sat 5:10pm, Fri missing: warns");
+eq(missedRun(friEve, final("2026-11-05"), none, at("2026-11-07T16:49")), false, "Sat 4:49pm: too early");
+eq(missedRun({...wedEve, expected_date: "2026-11-02"}, final("2026-10-30"), none, at("2026-11-03T16:50")), true, "Tue 4:50pm, Mon missing: warns");
+eq(missedRun(friEve, final("2026-11-05"), none, at("2026-11-08T17:10")), false, "Sunday: never");
+eq(missedRun(friEve, final("2026-11-05"), none, at("2026-11-09T17:10")), false, "Monday: never (no Sunday session)");
 // Holidays: Mon 2026-11-30 closed
 const hol = new Set(["2026-11-30"]);
-const monHol = {state: "holiday", expected_date: "2026-11-30", attempted_at: iso("2026-12-01T07:51")};
-eq(missedRun(monHol, final("2026-11-27"), hol, at("2026-12-01T09:10")), false, "Tuesday after a Monday holiday: no warning");
-eq(missedRun({state: "ok", attempted_at: iso("2026-11-27T18:31")}, final("2026-11-27"), hol, at("2026-12-01T09:10")), false,
+const monHol = {state: "holiday", expected_date: "2026-11-30", attempted_at: iso("2026-12-01T15:21"), trigger: "schedule", slot: "morning"};
+eq(missedRun(monHol, final("2026-11-27"), hol, at("2026-12-01T17:10")), false, "Tuesday after a Monday holiday: no warning");
+const monEve = {state: "holiday", attempted_at: iso("2026-12-01T01:40"), trigger: "schedule", slot: "evening", expected_date: "2026-11-30"};
+eq(missedRun(monEve, final("2026-11-27"), hol, at("2026-12-01T17:10")), false,
   "Tuesday after a Monday holiday, backup never ran: still no warning (no Monday session)");
-eq(missedRun({state: "ok", attempted_at: iso("2026-11-30T18:31")}, final("2026-11-27"), none, at("2026-12-01T09:10")), true,
-  "same Tuesday without the holiday listed: warns");
+eq(missedRun(monEve, final("2026-11-27"), none, at("2026-12-01T17:10")), true, "same Tuesday without the holiday listed: warns");
 // Missing or malformed data
-eq(missedRun(wedEve, [null, {date: "2026-11-04"}], none, at("2026-11-05T09:10")), true, "null or non-final entries don't count");
-eq(missedRun(wedEve, [{date: "2026-11-04", final: "false"}], none, at("2026-11-05T09:10")), true, "final must be true, not a truthy string");
-eq(missedRun(null, noWed, none, at("2026-11-05T09:10")), true, "no status.json at all: warns");
-eq(missedRun({state: "ok", attempted_at: "garbage"}, noWed, none, at("2026-11-05T09:10")), true, "unreadable attempted_at counts as no run");
+eq(missedRun(wedEve, [null, {date: "2026-11-04"}], none, at("2026-11-05T17:10")), true, "null or non-final entries don't count");
+eq(missedRun(wedEve, [{date: "2026-11-04", final: "false"}], none, at("2026-11-05T17:10")), true, "final must be true, not a truthy string");
+eq(missedRun(null, noWed, none, at("2026-11-05T17:10")), true, "no status.json at all: warns");
+eq(missedRun({state: "no_new_session", attempted_at: iso("2026-11-04T18:31"), trigger: "schedule"}, noWed, none, at("2026-11-05T17:10")), false,
+  "an older status.json without slot: no warning (can't tell which run it was)");
+eq(missedRun({...wedEve, slot: "Morning"}, noWed, none, at("2026-11-05T17:10")), false, "an unknown slot value: no warning");
+eq(missedRun({...wedEve, slot: 7}, noWed, none, at("2026-11-05T17:10")), false, "a non-text slot: no warning");
+eq(missedRun({...backup("ok"), expected_date: undefined}, noWed, none, at("2026-11-05T17:10")), false, "a backup without expected_date: no warning");
+eq(missedRun(backup("ok", "Nov 4"), noWed, none, at("2026-11-05T17:10")), false, "a backup with a malformed expected_date: no warning");
 eq(JSON.stringify(cleanIndex([null, 5, "x", {date: "2026-11-04", final: true}])), JSON.stringify([{date: "2026-11-04", final: true}]), "cleanIndex keeps objects only");
 eq(JSON.stringify([cleanIndex({}), cleanIndex(null)]), "[[],[]]", "cleanIndex turns a non-array into no entries");
-// The warning is about this morning's backup, so it stays all day; there is no rule about the 6:30pm run
+// The warning is about this morning's backup, so it stays into the evening; there is no rule about the 6:30pm run
 eq(missedRun(wedEve, noWed, none, at("2026-11-05T21:45")), true, "Thu 9:45pm, backup never ran and Wed still missing: still warns");
+eq(missedRun(wedEve, noWed, none, at("2026-11-05T23:59")), true, "Thu 11:59pm: still warns");
+eq(missedRun(wedEve, final("2026-11-03"), none, at("2026-11-06T00:01")), false, "Fri 12:01am: Thu is now the previous weekday, before 4:50pm");
 
 // closedToday
 eq(closedToday({state: "holiday", expected_date: "2026-11-30", attempted_at: iso("2026-11-30T18:31")}, at("2026-11-30T19:00")), true,

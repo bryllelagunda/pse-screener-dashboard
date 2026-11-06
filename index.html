@@ -339,13 +339,20 @@ const validTime = t => typeof t === "string" && !isNaN(Date.parse(t));
 const cleanIndex = v => Array.isArray(v) ? v.filter(e => e && typeof e === "object") : []; // a bad file or cache can't break the page
 const closedToday = (st, now = new Date()) => st.state === "holiday" &&
   (st.expected_date || (validTime(st.attempted_at) ? manilaISO(new Date(st.attempted_at)) : null)) === manilaISO(now);
-// After 8:50am Tue–Sat (the 7:50am backup plus an hour): the previous weekday traded, has no final file,
-// and nothing has run since 7:50am. st is null when there is no status.json.
+// After 4:50pm Tue–Sat (the 7:50am backup's start plus 9 hours: GitHub has started it up to 7h39m late):
+// the previous weekday traded, has no final file, and status.json is not a 7:50am-backup attempt for it.
+// A Run now doesn't hide it, unless it saved the final file. st is null when there is no status.json;
+// one from before slot existed (no "slot" key), or with a malformed slot or expected_date, never warns.
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 function missedRun(st, index, holidays, now = new Date()) {
   const m = manila(now), prev = manilaISO(new Date(now.getTime() - 864e5));
-  if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 8 * 60 + 50 || holidays.has(prev)) return false;
+  if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 16 * 60 + 50 || holidays.has(prev)) return false;
   if (index.some(e => e && e.date === prev && e.final === true)) return false;
-  return !st || !validTime(st.attempted_at) || new Date(st.attempted_at) < new Date(manilaISO(now) + "T07:50:00+08:00");
+  if (!st) return true;
+  if (!("slot" in st) || ![null, "evening", "morning"].includes(st.slot)) return false;
+  if (st.slot !== "morning") return true;
+  if (typeof st.expected_date !== "string" || !ISO_DAY.test(st.expected_date)) return false;
+  return st.expected_date !== prev;
 }
 /* STATUS-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
@@ -919,7 +926,7 @@ function init() {
   });
   const hdr = document.querySelector("header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--hh", hdr.offsetHeight + "px")).observe(hdr);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) renderBars(); }); // the 8:50am and midnight edges
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) renderBars(); }); // the 4:50pm and midnight edges
   loadCache();
   if (!S.key && !S.rows) showKey(true);
   renderAll();
