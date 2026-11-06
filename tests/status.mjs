@@ -12,7 +12,7 @@ import {fileURLToPath} from "node:url";
 const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
 const i = html.indexOf("/* STATUS-START"), j = html.indexOf("/* STATUS-END */");
 if (i < 0 || j < 0) throw new Error("STATUS markers not found");
-const {closedToday, missedRun, cleanIndex} = new Function(html.slice(i, j) + "; return {closedToday, missedRun, cleanIndex};")();
+const {closedToday, missedRun, cleanIndex, showMissed} = new Function(html.slice(i, j) + "; return {closedToday, missedRun, cleanIndex, showMissed};")();
 
 let bad = 0, n = 0;
 const eq = (got, want, what) => { n++; if (got !== want) { bad++; console.log(`FAIL ${what}: got ${got}, want ${want}`); } };
@@ -79,6 +79,16 @@ eq(JSON.stringify([cleanIndex({}), cleanIndex(null)]), "[[],[]]", "cleanIndex tu
 eq(missedRun(wedEve, noWed, none, at("2026-11-05T21:45")), true, "Thu 9:45pm, backup never ran and Wed still missing: still warns");
 eq(missedRun(wedEve, noWed, none, at("2026-11-05T23:59")), true, "Thu 11:59pm: still warns");
 eq(missedRun(wedEve, final("2026-11-03"), none, at("2026-11-06T00:01")), false, "Fri 12:01am: Thu is now the previous weekday, before 4:50pm");
+
+// showMissed: the page's gate around missedRun (fresh data only)
+const page = o => ({source: "", cached: false, refreshErr: null, authErr: false, status: wedEve, index: noWed, holidays: none, ...o});
+eq(showMissed(page({}), at("2026-11-05T17:10")), true, "fresh data, Wed missing: shows");
+eq(showMissed(page({cached: true}), at("2026-11-05T17:10")), false, "stale cache before the refresh: hidden");
+eq(showMissed(page({refreshErr: "HTTP 500"}), at("2026-11-05T17:10")), false, "failed refresh: hidden");
+eq(showMissed(page({authErr: true}), at("2026-11-05T17:10")), false, "wrong key: hidden");
+eq(showMissed(page({source: "mine.csv"}), at("2026-11-05T17:10")), false, "a loaded CSV is shown: hidden");
+eq(showMissed(page({status: null, index: []}), at("2026-11-05T17:10")), false, "nothing loaded yet: hidden");
+eq(showMissed(page({status: null}), at("2026-11-05T17:10")), true, "no status.json but results exist: shows");
 
 // closedToday
 eq(closedToday({state: "holiday", expected_date: "2026-11-30", attempted_at: iso("2026-11-30T18:31")}, at("2026-11-30T19:00")), true,

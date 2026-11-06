@@ -352,6 +352,9 @@ function missedRun(st, index, holidays, now = new Date()) {
   if (!("slot" in st) || ![null, "evening", "morning"].includes(st.slot) || !isDay(st.expected_date)) return false;
   return st.slot !== "morning" || st.expected_date !== prev;
 }
+// Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
+const showMissed = (s, now = new Date()) => !s.source && !s.cached && !s.refreshErr && !s.authErr && !!(s.status || s.index.length) &&
+  missedRun(s.status, s.index, s.holidays, now);
 /* STATUS-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
 const safeUrl = u => typeof u === "string" && /^https:\/\/github\.com\//.test(u) ? u : "https://github.com/" + OWNER + "/" + REPO + "/actions";
@@ -681,9 +684,6 @@ function renderHeader() {
   h.append(" · " + bits.join(" · "));
 }
 function bar(cls, ...kids) { $("bars").append(el("div", {cls: "bar fade " + cls, role: "status"}, ...kids)); }
-// Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
-const showMissed = () => !S.source && !S.cached && !S.refreshErr && !S.authErr && !!(S.status || S.index.length) &&
-  missedRun(S.status, S.index, S.holidays);
 function renderBars() {
   $("bars").textContent = "";
   if (S.authErr) bar("err", "Key expired or wrong: paste a new one with access to " + REPO + ". ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
@@ -698,7 +698,7 @@ function renderBars() {
     else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
     else if (closedToday(st)) bar("mute", "PSE closed today.");
   }
-  if (S.missed = showMissed())
+  if (S.missed = showMissed(S))
     bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
       el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
 }
@@ -926,8 +926,10 @@ function init() {
   });
   const hdr = document.querySelector("header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--hh", hdr.offsetHeight + "px")).observe(hdr);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) renderBars(); });
-  setInterval(() => { if (!document.hidden && showMissed() !== S.missed) renderBars(); }, 60e3); // the 4:50pm and midnight edges, tab left open
+  // The 4:50pm and midnight edges in a tab left open: before the missed-run line turns on, reload, since the backup may have run since
+  const recheck = () => { if (document.hidden) return; if (showMissed(S) && !S.missed && S.key) loadRemote(); else renderBars(); };
+  document.addEventListener("visibilitychange", recheck);
+  setInterval(() => { if (!document.hidden && showMissed(S) !== S.missed) recheck(); }, 60e3);
   loadCache();
   if (!S.key && !S.rows) showKey(true);
   renderAll();
