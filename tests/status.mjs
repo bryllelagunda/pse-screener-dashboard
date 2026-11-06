@@ -69,6 +69,7 @@ eq(missedRun({...wedEve, slot: 7}, noWed, none, at("2026-11-05T17:10")), false, 
 eq(missedRun({...backup("ok"), expected_date: undefined}, noWed, none, at("2026-11-05T17:10")), false, "a backup without expected_date: no warning");
 eq(missedRun(backup("ok", "Nov 4"), noWed, none, at("2026-11-05T17:10")), false, "a backup with a malformed expected_date: no warning");
 eq(missedRun(backup("ok", "2026-02-30"), noWed, none, at("2026-11-05T17:10")), false, "a backup with an impossible date: no warning");
+eq(missedRun(backup("ok", "2026-99-99"), noWed, none, at("2026-11-05T17:10")), false, "an out-of-range date: no warning, no crash");
 eq(missedRun({...wedEve, expected_date: "garbage"}, noWed, none, at("2026-11-05T17:10")), false, "an evening run with a malformed expected_date: no warning");
 eq(missedRun({...runNow, expected_date: 42}, noWed, none, at("2026-11-05T17:10")), false, "a Run now with a non-text expected_date: no warning");
 eq(missedRun({...runNow, expected_date: null}, noWed, none, at("2026-11-05T17:10")), false, "a run that crashed before choosing its session: no warning (its failed line shows)");

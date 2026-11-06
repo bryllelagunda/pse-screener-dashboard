@@ -343,7 +343,7 @@ const closedToday = (st, now = new Date()) => st.state === "holiday" &&
 // the previous weekday traded, has no final file, and status.json is not a 7:50am-backup attempt for it.
 // A Run now doesn't hide it, unless it saved the final file. st is null when there is no status.json;
 // one from before slot existed (no "slot" key), or with a malformed slot or expected_date, never warns.
-const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(d + "T00:00:00Z").toISOString().startsWith(d);
+const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)) && new Date(d).toISOString().startsWith(d);
 function missedRun(st, index, holidays, now = new Date()) {
   const m = manila(now), prev = manilaISO(new Date(now.getTime() - 864e5));
   if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 16 * 60 + 50 || holidays.has(prev)) return false;
