@@ -331,8 +331,31 @@ function dateLabel(iso, withYear) {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US",
     {weekday: "short", month: "short", day: "numeric", year: withYear ? "numeric" : undefined, timeZone: "UTC"});
 }
+/* STATUS-START: run-schedule lines in the status bar (tests/status.mjs checks it) */
 const manila = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3); // Asia/Manila is UTC+8, no DST
 const manilaISO = d => manila(d).toISOString().slice(0, 10);
+// The session the run was for is today; a status.json from before expected_date existed uses the day it ran
+const validTime = t => typeof t === "string" && !isNaN(Date.parse(t));
+const cleanIndex = v => Array.isArray(v) ? v.filter(e => e && typeof e === "object") : []; // a bad file or cache can't break the page
+const closedToday = (st, now = new Date()) => st.state === "holiday" &&
+  (st.expected_date || (validTime(st.attempted_at) ? manilaISO(new Date(st.attempted_at)) : null)) === manilaISO(now);
+// After 4:50pm Tue–Sat (the 7:50am backup's start plus 9 hours: GitHub has started it up to 7h39m late):
+// the previous weekday traded, has no final file, and status.json is not a 7:50am-backup attempt for it.
+// A Run now doesn't hide it, unless it saved the final file. st is null when there is no status.json;
+// one from before slot existed (no "slot" key), or with a malformed slot or expected_date, never warns.
+const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)) && new Date(d).toISOString().startsWith(d);
+function missedRun(st, index, holidays, now = new Date()) {
+  const m = manila(now), prev = manilaISO(new Date(now.getTime() - 864e5));
+  if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 16 * 60 + 50 || holidays.has(prev)) return false;
+  if (index.some(e => e && e.date === prev && e.final === true)) return false;
+  if (!st) return true;
+  if (!("slot" in st) || ![null, "evening", "morning"].includes(st.slot) || !isDay(st.expected_date)) return false;
+  return st.slot !== "morning" || st.expected_date !== prev;
+}
+// Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
+const showMissed = (s, now = new Date()) => !s.source && !s.cached && !s.refreshErr && !s.authErr && !!(s.status || s.index.length) &&
+  missedRun(s.status, s.index, s.holidays, now);
+/* STATUS-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
 const safeUrl = u => typeof u === "string" && /^https:\/\/github\.com\//.test(u) ? u : "https://github.com/" + OWNER + "/" + REPO + "/actions";
 
@@ -343,7 +366,7 @@ const S = {
   index: [], status: null, holidays: new Set(),
   cmpRows: null, cmpDate: null,
   preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", open: new Set(),
-  parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null,
+  parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null, missed: false,
   screens: loadScreens(store.get("screens", [])), screen: null, dirty: false, fopen: store.get("filtersOpen", true) !== false,
 };
 
@@ -670,19 +693,14 @@ function renderBars() {
   const st = S.status;
   if (st && !S.source) {
     const log = el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
-    const when = st.attempted_at ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
+    const when = validTime(st.attempted_at) ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
     if (st.state === "failed") bar("err", "⚠ Last run failed" + when + ": " + (st.error || "unknown error") + ". Showing " + (S.date ? dateLabel(S.date) : "older") + " data. ", log);
     else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
-    else if (st.state === "holiday" && st.attempted_at && manilaISO(new Date(st.attempted_at)) === manilaISO()) bar("mute", "PSE closed today.");
-    if (missedSchedule(st)) bar("", "⚠ Scheduled run did not run this evening. Press Run now, or ",
-      el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
+    else if (closedToday(st)) bar("mute", "PSE closed today.");
   }
-}
-function missedSchedule(st) {
-  const today = manilaISO(), m = manila(), dow = m.getUTCDay();
-  if (dow === 0 || dow === 6 || S.holidays.has(today)) return false;
-  if (m.getUTCHours() * 60 + m.getUTCMinutes() < 21 * 60 + 30) return false;
-  return !st.attempted_at || new Date(st.attempted_at) < new Date(today + "T18:30:00+08:00");
+  if (S.missed = showMissed(S))
+    bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
+      el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
 }
 function renderCompare() {
   const sel = $("cmp"); sel.textContent = "";
@@ -736,8 +754,8 @@ async function loadRemote(replaceFile) {
     const [csv, idx, st, hol] = await Promise.all(["latest.csv", "index.json", "status.json"].map(f => fileText("results/" + f)).concat(fileText("data/holidays.csv")));
     if (stale()) return;
     S.authErr = false; S.refreshErr = null;
-    S.index = idx ? JSON.parse(idx) : [];
-    S.status = st ? JSON.parse(st) : null;
+    S.index = cleanIndex(idx ? JSON.parse(idx) : []);
+    const sj = st ? JSON.parse(st) : null; S.status = sj && typeof sj === "object" && !Array.isArray(sj) ? sj : null;
     S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
     if (!csv && !idx && !hol) { S.authErr = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; renderAll(); return; } // a key without access to the repo gets 404s
     if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; renderAll(); return; }
@@ -774,7 +792,8 @@ async function checkFixture(my) {
 function loadCache() {
   const c = store.get("cache", null);
   if (!c || !S.key || typeof c.csv !== "string") return;
-  S.index = Array.isArray(c.index) ? c.index : []; S.status = c.status || null; S.holidays = new Set(c.holidays || []);
+  S.index = cleanIndex(c.index); S.status = c.status && typeof c.status === "object" && !Array.isArray(c.status) ? c.status : null;
+  S.holidays = new Set(Array.isArray(c.holidays) ? c.holidays : []);
   setCurrent(c.csv);
   if (c.cmp && cmpOk(c.cmp.date)) setCompare(c.cmp.csv, c.cmp.date);
   S.updated = c.at; S.cached = true;
@@ -907,6 +926,10 @@ function init() {
   });
   const hdr = document.querySelector("header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--hh", hdr.offsetHeight + "px")).observe(hdr);
+  // The 4:50pm and midnight edges in a tab left open: before the missed-run line turns on, reload, since the backup may have run since
+  const recheck = () => { if (document.hidden) return; if (showMissed(S) && !S.missed && S.key) loadRemote(); else renderBars(); };
+  document.addEventListener("visibilitychange", recheck);
+  setInterval(() => { if (!document.hidden && showMissed(S) !== S.missed) recheck(); }, 60e3);
   loadCache();
   if (!S.key && !S.rows) showKey(true);
   renderAll();
