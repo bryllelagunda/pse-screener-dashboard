@@ -14,7 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const html = readFileSync(join(here, "..", "index.html"), "utf8");
 const src = html.slice(html.indexOf("/* FILTER-START"), html.indexOf("/* FILTER-END */")) +
   html.slice(html.indexOf("/* HISTORY-START"), html.indexOf("/* HISTORY-END */"));
-if (!src.includes("HISTORY-START")) throw new Error("filter or history block markers not found in index.html");
+if (!src.includes("FILTER-START") || !src.includes("HISTORY-START")) throw new Error("filter or history block markers not found in index.html");
 const {PRESETS, evaluate, parseCSV, fmt, parseHistory, dayRows, HHEAD} = new Function(src + "; return {PRESETS, evaluate, parseCSV, fmt, parseHistory, dayRows, HHEAD};")();
 
 const [repo = join(here, "..", "..", "pse-screener"), ...args] = process.argv.slice(2);

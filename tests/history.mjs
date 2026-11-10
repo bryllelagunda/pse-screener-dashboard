@@ -11,9 +11,9 @@ import {fileURLToPath} from "node:url";
 
 const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
 const block = (a, b) => { const i = html.indexOf(a), j = html.indexOf(b); if (i < 0 || j < 0) throw new Error(a + " markers not found"); return html.slice(i, j); };
-const {PRESETS, parseHistory, missRule, dayRows, track, strength, knocking, disagree, daysText, HHEAD} = new Function(
+const {PRESETS, parseHistory, missRule, dayRows, track, strength, knocking, disagree, daysText, behind, HHEAD} = new Function(
   block("/* FILTER-START", "/* FILTER-END */") + block("/* HISTORY-START", "/* HISTORY-END */") +
-  "; return {PRESETS, parseHistory, missRule, dayRows, track, strength, knocking, disagree, daysText, HHEAD};")();
+  "; return {PRESETS, parseHistory, missRule, dayRows, track, strength, knocking, disagree, daysText, behind, HHEAD};")();
 
 let bad = 0, n = 0;
 // Failures never print a close or a change (R5), even made-up ones.
@@ -115,7 +115,16 @@ for (const [o, what] of [[{stale: true}, "no trade"], [{fetch_error: "HTTP 500"}
   eq(disagree(day(...same, "2026-11-03,ZZD,live,true,false,,,9"), rows, D), 1, "a row only in history");
 }
 
-// 6. The Days in cell per history state
+// 6. A saved history that ends before the latest final session would bridge the missing days: it counts as out of date
+{
+  const H = parseHistory(hist(marker("2026-10-29"), marker("2026-10-30")));
+  const idx = d => d.map(date => ({date, final: true}));
+  eq([behind(H, idx(["2026-10-30", "2026-11-03"]), "2026-11-03"), behind(H, idx(["2026-10-30"]), "2026-11-03"),
+    behind(H, [...idx(["2026-10-30"]), {date: "2026-11-03", final: false}], "2026-11-03"), behind(H, [], "2026-11-03")],
+    [true, false, false, false], "out of date only when a final session up to the shown date is missing from history");
+}
+
+// 7. The Days in cell per history state
 eq([daysText({state: "loading"}, "strict", 0), daysText({state: "missing"}, "strict", 0), daysText({state: "broken"}, "loose", 0),
   daysText({state: "ok"}, "custom", 4), daysText({state: "ok"}, "strict", 4)], ["…", "—", "—", "—", "4"],
   "Days in: … while loading, — when missing, broken or Custom, else the number");
