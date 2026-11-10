@@ -14,3 +14,4 @@ jobs:
       - run: node tests/static.mjs
       - run: node tests/screens.mjs
       - run: node tests/status.mjs
+      - run: node tests/history.mjs

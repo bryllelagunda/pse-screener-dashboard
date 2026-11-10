@@ -15,10 +15,31 @@ or results-shaped CSV text inside an allowed one, fails the check.
 
 1. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new):
    repository access **pse-screener** only, permissions **Contents: read** and
-   **Actions: read and write**, expiry up to 1 year.
+   **Actions: read and write**, expiring in 90 days.
 2. Open the page, paste the token, press **Save key**. **Key → Forget key** removes it.
 
-Offline: press **Load CSV** and pick `pse-screener/results/latest.csv`. No key needed.
+Offline: press **Load CSV** and pick `pse-screener/results/latest.csv`, plus `results/history.csv` if you
+want the history (pick both at once). No key needed.
+
+## Stock history
+
+The page also reads the private `results/history.csv` (written by the screener's runs), after the table
+is on screen, and keeps it in the same `localStorage` cache as `latest.csv`. It adds:
+
+- **Days in** (sortable, right after Symbol): sessions in a row on the selected preset, today included.
+  `…` while history loads, `—` when there is none yet, it can't be read, or the view is Custom
+  (history covers Strict and Loose only). A **BOTH** badge marks stocks on Strict and Loose today.
+- **Knocking on the door:** stocks that missed a preset by one rule 3+ sessions running (data gaps
+  such as no trade or no market cap never count).
+- **Search** replaces the table while the box has text: every stock in the file plus symbols found only
+  in history, each with an S/L badge.
+- **The stock panel** opens from any table, search or list row (`?s=SYMBOL` in the address; back, ✕ or
+  Esc close it): today's status and failures, Strength per preset, the last 60 sessions as S and L
+  lines (rebuilt days dimmed, "no record" days dotted), and today's numbers.
+- A red bar if history's rows for the shown (final) day disagree with the file.
+
+One bad row rejects the whole history file; the rest of the page keeps working. On a phone, **Load CSV**
+and **Key** sit in the **⋯** menu.
 
 ## Saved filter sets
 
@@ -44,6 +65,7 @@ Hidden while a CSV you opened is shown.
 node tests/static.mjs                                  # size, exact CSP, no innerHTML, file allowlist, no data or tokens (CI runs this)
 node tests/screens.mjs                                 # saved sets: storage cleaning, name rules, panel summary (CI runs this)
 node tests/status.mjs                                  # status bar: missed-run and "PSE closed today." rules (CI runs this)
+node tests/history.mjs                                 # history file checks, Days in, streaks, Knocking, disagreement (CI runs this)
 node tests/parity.mjs ../pse-screener ../pse-screener/results/latest.csv
 ```
 
@@ -55,7 +77,9 @@ It also runs the private repository's Python `evaluate` directly over 81 slider 
 parses edge-case files (BOM, quoted commas and newlines, short rows, CRLF/LF/CR line endings).
 Change the filter block and `evaluate` together. The page runs the same check on every load
 against the CSV's own `pass_strict` and `pass_loose` columns, and shows a red warning if they
-disagree.
+disagree. With a `history.csv` (passed as an argument, or `../pse-screener/results/history.csv`), it
+also checks that history's rows for each results file's date equal the rows the page derives from
+it, printing symbols only.
 
 Design: `pse-screener/docs/design.md`, sections "How the dashboard reads private data" and
 "Dashboard". Wireframe: `docs/wireframe.png`.
