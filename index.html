@@ -1273,7 +1273,9 @@ function init() {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
     else if (e.key === "Escape") { setMenu(false); more.focus(); }
   });
-  document.addEventListener("click", e => { if (!menu.hidden && !more.contains(e.target) && !menu.contains(e.target)) setMenu(false); });
+  let eat = 0; // a tap outside only closes the menu: its click is dropped
+  document.addEventListener("pointerdown", e => { if (!menu.hidden && !more.contains(e.target) && !menu.contains(e.target)) { eat = e.timeStamp; setMenu(false); } }, true);
+  document.addEventListener("click", e => { if (eat && e.timeStamp - eat < 1000) { e.stopPropagation(); e.preventDefault(); } eat = 0; }, true);
   menu.addEventListener("focusout", e => { if (!menu.contains(e.relatedTarget) && e.relatedTarget !== more && e.relatedTarget) setMenu(false); });
   $("spx").addEventListener("click", () => closePanel());
   $("scrim").addEventListener("click", () => closePanel());
