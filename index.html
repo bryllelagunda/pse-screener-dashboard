@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark">
 <title>PSE Screener</title>
 <style>
-:root{--bg:#16191f;--panel:#1d2129;--line:#2b313b;--text:#e6e9ee;--muted:#98a2b0;--accent:#5b9dff;--up:#3fb27f;--down:#f0645a;--hh:0px}
+:root{--bg:#16191f;--panel:#1d2129;--line:#2b313b;--text:#e6e9ee;--muted:#98a2b0;--accent:#5b9dff;--accent2:#a9cbff;--up:#3fb27f;--down:#f0645a;--warn:#e0b04f;--hh:0px}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
@@ -27,12 +27,18 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px so
 header .wrap{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding-top:10px;padding-bottom:10px}
 h1{font-size:20px;margin:0}
 h2{font-size:16px;margin:0 0 8px}
+h3{font-size:13px;margin:14px 0 6px;color:var(--muted);font-weight:600}
 .muted{color:var(--muted)}
 .small{font-size:13px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;border:1px solid var(--accent);color:var(--accent);margin-left:6px;vertical-align:middle}
 .badge.warn{border-color:#e0b04f;color:#e0b04f}
+.badge.both{border-color:var(--text);color:var(--text)}
+.sl{display:inline-flex;margin-left:6px;vertical-align:middle;border:1px solid var(--line);border-radius:4px;overflow:hidden;font-size:11px;font-weight:700}
+.sl b{padding:1px 5px;color:#5c6573}
+.sl b.p{background:var(--accent);color:#0d1420}.sl b.p.l{background:var(--accent2)}
+.sl b.m{color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
 .bar{border-radius:10px;padding:10px 14px;margin-top:12px;border:1px solid #6b5a2b;background:#2a2619}
 .bar.err{border-color:#6e3632;background:#2b1d1d}
 .bar.mute{border-color:var(--line);background:var(--panel);color:var(--muted)}
@@ -58,13 +64,50 @@ th.hl,td.hl{font-weight:700}
 thead th.hl button{color:var(--text)}
 td .nm{display:block;font-weight:400;font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis}
 .up{color:var(--up)}.down{color:var(--down)}
-tr.det{display:none}
-tr.det td{text-align:left;white-space:normal}
-tr.det dl{display:grid;grid-template-columns:auto auto;gap:4px 12px;margin:0}
-tr.det dd{margin:0;text-align:right}
+tr.main,.list tr[data-sym]{cursor:pointer}
+tr.main:hover td,.list tr[data-sym]:hover td{background:#222733}
+tr.dim td{color:var(--muted)}
 .list{width:100%}
-.list td{text-align:left;white-space:normal}
+.list td{text-align:left;white-space:normal;height:44px}
 .list td:first-child{font-weight:600;width:90px}
+.list td.go{width:24px;color:var(--muted);text-align:right}
+.list td.sub{font-size:12px;color:var(--muted);height:auto;padding-top:10px}
+.menuw{position:relative}
+#menu{position:absolute;right:0;top:48px;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:170px}
+#menu button{display:block;width:100%;text-align:left;border:0;background:none}#menu button:hover{background:#262b35}
+#scrim{position:fixed;inset:0;z-index:20;background:rgba(10,12,16,.55)}
+#sp{position:fixed;top:0;right:0;bottom:0;z-index:21;width:420px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:0 16px 24px}
+#sp .top{position:sticky;top:0;z-index:2;background:var(--panel);display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:14px 0 10px;border-bottom:1px solid var(--line)}
+#sps{font-size:20px;font-weight:700}
+#spx{width:44px;padding:0;font-size:18px}
+.lock{overflow:hidden}
+.status{margin-top:10px;font-weight:600}
+.status span{font-weight:400}
+.grid{display:grid;grid-template-columns:1fr auto auto;margin-top:4px}
+.grid div{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right}
+.grid div:nth-child(3n+1){text-align:left;color:var(--muted)}.grid .h{font-size:12px;font-weight:600;color:var(--text)}
+.strip{display:grid;grid-template-columns:42px 1fr;column-gap:8px;align-items:center;margin-top:6px;touch-action:none;cursor:pointer}
+.lbl{font-size:11px;color:var(--muted);text-align:right;line-height:14px;white-space:nowrap}
+.lbl b{color:var(--text);font-size:12px}
+.ln{display:grid;grid-template-columns:repeat(30,1fr);gap:2px;height:14px}
+.ln.l,.lbl+.ln+.lbl{margin-top:3px}
+.c{position:relative;border-radius:2px}
+.c.p{background:var(--accent)}.ln.l .c.p{background:var(--accent2)}
+.c.m{box-shadow:inset 0 0 0 1.5px var(--warn)}
+.c.n::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:#4a5260}
+.c.o{outline:1.5px dotted #6b7482;outline-offset:-1.5px}
+.c.reb{opacity:.5}
+.c.sel{box-shadow:0 0 0 2px var(--text)}
+.span{grid-column:2;display:flex;font-size:11px;color:var(--muted);margin:3px 0 8px}
+.span i{font-style:normal;border-top:1px dashed var(--muted);padding-top:2px;overflow:hidden;white-space:nowrap}
+.span i.live{border-top-style:solid;border-color:var(--text);color:var(--text)}
+.span i.pad{border:0}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12px;color:var(--muted)}.legend span{display:flex;align-items:center;gap:6px}
+.legend .c{display:inline-block;width:12px;height:12px}
+#sp dl{display:grid;grid-template-columns:1fr auto;margin:0}
+#sp dt,#sp dd{padding:7px 0;border-bottom:1px solid var(--line);margin:0}#sp dt{color:var(--muted)}#sp dd{text-align:right}
+.note{font-size:12px;color:var(--muted);margin-top:12px}
+.fail{margin:4px 0 0;padding-left:18px}
 .why{color:var(--down)}
 details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 .empty{padding:16px 6px;color:var(--muted)}
@@ -76,12 +119,22 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 .fade{animation:f .15s ease-out}
 @keyframes f{from{opacity:.4}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fade{animation:none}}
+.ph{display:none}
 @media (max-width:639px){
- .x{display:none}
- tr.main{cursor:pointer}
- tr.det.open{display:table-row}
+ .x,#load,#keybtn{display:none}
+ .ph{display:inline-block}
  td .nm{max-width:130px}
+ th,td{padding:8px 4px}
+ #tb td:first-child{white-space:normal}
  header .wrap>div:last-child{width:100%}
+ #run,#cmp{flex:1}
+ #runst{order:9;width:100%}#runst:empty{display:none}
+ #more{width:44px;padding:0}
+ #chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:100%;white-space:nowrap}
+ #chips button{flex:none}
+ #q{width:100%}
+ #sp{width:100%;border-left:0}
+ #scrim{display:none}
 }
 </style>
 </head>
@@ -97,14 +150,16 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
   <button id="load" type="button">Load CSV</button>
   <select id="cmp" aria-label="Compare with"><option value="">Compare with…</option></select>
   <button id="keybtn" type="button" aria-expanded="false">Key</button>
-  <input id="file" type="file" accept=".csv,text/csv" hidden>
+  <span class="menuw ph"><button id="more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu" aria-label="More">⋯</button>
+   <span id="menu" role="menu" hidden><button type="button" role="menuitem" data-go="load">Load CSV</button><button type="button" role="menuitem" data-go="keybtn">Key</button></span></span>
+  <input id="file" type="file" accept=".csv,text/csv" multiple hidden>
   <input id="cfile" type="file" accept=".csv,text/csv" hidden>
  </div>
 </div></header>
 <main class="wrap">
  <section id="keyp" class="panel" hidden>
   <h2 id="keyh">Connect your private results</h2>
-  <p class="small muted" id="keyt">Paste a fine-grained GitHub token. Give it access to the <b>pse-screener</b> repository only, with <b>Contents: read</b> and <b>Actions: read and write</b>, expiring in up to 1 year. It is stored in this browser only. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a token on GitHub</a>.</p>
+  <p class="small muted" id="keyt">Paste a fine-grained GitHub token. Give it access to the <b>pse-screener</b> repository only, with <b>Contents: read</b> and <b>Actions: read and write</b>, expiring in 90 days. It is stored in this browser only. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a token on GitHub</a>.</p>
   <div class="row">
    <input id="keyin" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" aria-label="GitHub token" style="flex:1;min-width:220px">
    <button id="keysave" class="primary" type="button">Save key</button>
@@ -147,14 +202,21 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
   <input id="q" type="search" placeholder="Search ticker or name ( / )" aria-label="Search" style="min-width:220px">
  </div>
  <section class="panel" style="padding:0 8px 4px">
+  <div id="tnote" class="small muted" style="padding:10px 6px 0" hidden></div>
   <table id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tb"></tbody></table>
   <div id="tblempty" class="empty" hidden></div>
  </section>
  <section class="panel"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span></h2><table class="list"><tbody id="missed"></tbody></table></section>
+ <section class="panel" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span></h2><table class="list"><tbody id="knock"></tbody></table></section>
  <section class="panel"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
  <section class="panel"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
  <p class="small muted">Prices are read from your private repository with your key, or from a file you load. This page stores nothing on any server.</p>
 </main>
+<div id="scrim" hidden></div>
+<aside id="sp" role="dialog" aria-modal="true" aria-labelledby="sps" hidden>
+ <div class="top"><div><div id="sps"></div><div id="spn" class="small muted"></div></div><button id="spx" type="button" aria-label="Close">✕</button></div>
+ <div id="spb"></div>
+</aside>
 <script>
 "use strict";
 const OWNER = "bryllelagunda", REPO = "pse-screener", API = "https://api.github.com/repos/" + OWNER + "/" + REPO;
@@ -217,7 +279,7 @@ function evaluate(row, s, dataDate) { return [...new Set(failures(row, s, dataDa
 const NUM = new Set(["sessions", "close", "chg_pct", "value_today", "cci20", "atr_pct14", "roc9", "pct_vs_sma50", "pct_vs_sma200",
   "sma50", "sma200", "high_52w", "pct_high_above_close", "avg_value_30d", "mcap"]);
 const BOOL = new Set(["stale", "pass_strict", "pass_loose"]);
-function parseCSV(text) {
+function csvRows(text) {
   const rows = []; let row = [], f = "", q = false, i = 0;
   text = text.replace(/^﻿/, "");
   for (; i < text.length; i++) {
@@ -229,8 +291,11 @@ function parseCSV(text) {
     else f += c;
   }
   if (f !== "" || row.length) { row.push(f); rows.push(row); }
-  const head = rows.shift() || [];
-  return rows.filter(r => r.length > 1 || r[0] !== "").map(r => {
+  return rows.filter(r => r.length > 1 || r[0] !== "");
+}
+function parseCSV(text) {
+  const rows = csvRows(text), head = rows.shift() || [];
+  return rows.map(r => {
     const o = {};
     head.forEach((h, j) => {
       const v = r[j] === undefined ? "" : r[j];
@@ -301,6 +366,90 @@ function summary(s) {
 }
 /* SCREENS-END */
 
+/* HISTORY-START: results/history.csv checks and the values derived from it (tests/history.mjs checks it) */
+const HHEAD = "date,symbol,source,strict,loose,miss_strict,miss_loose,close";
+const HRULES = ["sma200", "sma50", "cross", "roc9", "price", "avg", "mcap", "vt", "high", "atr"];
+const isoDay = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)) && new Date(d).toISOString().startsWith(d);
+// A data gap (no trade, not scanned, short history, no market cap) is never a miss by one rule.
+const isGap = (f, r) => f.rule === "stale" || f.rule === "fetch" || !!f.short || (f.rule === "mcap" && missing(r, "mcap"));
+function missRule(r, s, date) { const f = failures(r, s, date); return f.length === 1 && !isGap(f[0], r) ? f[0].rule : ""; }
+// The history rows a results file should give (the screener's rule for kept rows)
+function dayRows(rows, date) {
+  const m = new Map();
+  for (const r of rows) {
+    const o = {};
+    for (const p in PRESETS) { o[p] = String(!failures(r, PRESETS[p], date).length); o["miss_" + p] = missRule(r, PRESETS[p], date); }
+    if (o.strict === "true" || o.loose === "true" || o.miss_strict || o.miss_loose) m.set(r.symbol, o);
+  }
+  return m;
+}
+// The whole file or an Error naming the first bad row: never a partial history
+function parseHistory(text) {
+  const rows = csvRows(text), H = {state: "ok", dates: [], src: {}, by: new Map()};
+  if ((rows.shift() || []).join() !== HHEAD) throw new Error("wrong header");
+  rows.forEach((c, i) => {
+    const bad = w => { throw new Error("row " + (i + 2) + ": " + w); }, [d, sym, src, s, l, ms, ml, cl] = c;
+    if (c.length !== 8) bad("wrong number of cells");
+    if (!isoDay(d)) bad("bad date");
+    if (!["live", "rebuilt", "missing"].includes(src)) bad("bad source");
+    if (![s, l].every(x => ["true", "false", ""].includes(x))) bad("bad pass flag");
+    if (![ms, ml].every(x => !x || HRULES.includes(x))) bad("unknown rule");
+    if (cl && !/^-?\d+(\.\d+)?$/.test(cl)) bad("bad close");
+    if (!sym) { // a session marker: dates rise, one marker each
+      if (H.dates.length && d <= H.dates.at(-1)) bad("date out of order");
+      H.src[d] = src; H.dates.push(d); return;
+    }
+    if (d !== H.dates.at(-1) || src !== H.src[d] || src === "missing") bad("stock row without its session row");
+    let m = H.by.get(sym); if (!m) H.by.set(sym, m = new Map());
+    if (m.has(d)) bad("repeated stock");
+    m.set(d, {strict: s, loose: l, miss_strict: ms, miss_loose: ml, close: cl ? +cl : null});
+  });
+  return H;
+}
+// One stock's sessions, oldest first: history before the shown date, then the shown file.
+// Per preset: p passed, m missed by one rule, n neither, o no record.
+function track(H, sym, row, date) {
+  const m = H.by.get(sym), out = [];
+  const add = (d, src, st, rule, c) => out.push({d, via: src, c, strict: st("strict"), loose: st("loose"), rs: rule("strict"), rl: rule("loose")});
+  for (const d of H.dates) if (d < date) {
+    const r = m && m.get(d), src = H.src[d];
+    add(d, src, p => src === "missing" ? "o" : !r ? "n" : r[p] === "true" ? "p" : r["miss_" + p] ? "m" : "n", p => r ? r["miss_" + p] : "", r ? r.close : null);
+  }
+  const ok = p => row && !failures(row, PRESETS[p], date).length, mr = p => row ? missRule(row, PRESETS[p], date) : "";
+  add(date, "today", p => ok(p) ? "p" : mr(p) ? "m" : "n", mr, row ? row.close : null);
+  return out;
+}
+// Days in, miss streak, last 20, when this run began (or the last pass) and the change since
+function strength(t, p) {
+  const run = k => { let n = 0; for (let i = t.length - 1; i >= 0 && t[i][p] === k; i--) n++; return n; };
+  const days = run("p"), now = t.at(-1), j = days ? t[t.length - days] : t.findLast(x => x[p] === "p");
+  return {days, miss: run("m"), last20: t.slice(-20).filter(x => x[p] === "p").length, join: j ? j.d : null,
+    chg: days && now.c !== null && j.c > 0 ? now.c / j.c - 1 : null};
+}
+// Miss-by-one streaks of 3 or more, longest first
+function knocking(tracks, rows) {
+  const out = {strict: [], loose: []};
+  for (const r of rows) for (const p in out) {
+    const t = tracks.get(r.symbol), k = t && strength(t, p);
+    if (k && k.miss >= 3) out[p].push({r, n: k.miss, rule: t.at(-1)[p === "strict" ? "rs" : "rl"]});
+  }
+  for (const p in out) out[p].sort((a, b) => b.n - a.n || a.r.symbol.localeCompare(b.r.symbol));
+  return out;
+}
+// Stocks whose rows for the date differ from history's, either way
+function disagree(H, rows, date) {
+  const mine = dayRows(rows, date), syms = new Set(mine.keys());
+  for (const [s, m] of H.by) if (m.has(date)) syms.add(s);
+  let n = 0;
+  for (const s of syms) {
+    const a = mine.get(s), b = H.by.has(s) && H.by.get(s).get(date);
+    if (!a || !b || ["strict", "loose", "miss_strict", "miss_loose"].some(k => a[k] !== b[k])) n++;
+  }
+  return n;
+}
+const daysText = (H, preset, n) => H.state === "loading" ? "…" : H.state !== "ok" || !PRESETS[preset] ? "—" : String(n);
+/* HISTORY-END */
+
 // ------------------------------------------------------------------ helpers
 const $ = id => document.getElementById(id);
 function el(tag, props, ...kids) {
@@ -365,10 +514,13 @@ const S = {
   rows: null, date: null, meta: null, source: "", updated: null, cached: false,
   index: [], status: null, holidays: new Set(),
   cmpRows: null, cmpDate: null,
-  preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", open: new Set(),
+  preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", hsrc: "", htext: null, want: null,
   parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null, missed: false,
   screens: loadScreens(store.get("screens", [])), screen: null, dirty: false, fopen: store.get("filtersOpen", true) !== false,
 };
+let P = null; // open stock panel: {sym, from, pushed}
+const NAME = {strict: "Strict", loose: "Loose"};
+let H = {state: S.key ? "loading" : "missing"}; // or broken (err), or ok (parseHistory)
 
 // ------------------------------------------------------------------ settings and URL
 const MONEY_STEPS = [0, 1e6, 2e6, 5e6, 1e7, 2e7, 5e7, 1e8];
@@ -391,14 +543,19 @@ function parseMoney(t) {
   const m = /^(-?\d*\.?\d+)([kmbt]?)$/.exec(t);
   return m ? +m[1] * ({"": 1, k: 1e3, m: 1e6, b: 1e9, t: 1e12})[m[2]] : NaN;
 }
-function settingsToURL() {
+function pageURL() {
   const p = new URLSearchParams();
   p.set("p", S.preset);
   if (S.preset === "custom") for (const k in URLK) {
     const v = S.set[k];
     p.set(URLK[k], Array.isArray(v) ? v.join("_") : typeof v === "boolean" ? +v : v);
   }
-  history.replaceState(null, "", "?" + p);
+  const sym = P ? P.sym : S.want;
+  if (sym) p.set("s", sym);
+  return "?" + p;
+}
+function settingsToURL() {
+  history.replaceState(null, "", pageURL());
   store.set("settings", {preset: S.preset, set: S.set, screen: S.screen, dirty: S.dirty});
 }
 function settingsFromURL() {
@@ -570,12 +727,28 @@ function compute() {
       if (e.f.length && p && !p.f.length) dropped.push(e);
     }
   }
-  C = {pass, missed, dropped, notScanned, isNew, hasCmp: !!cmp};
+  if (cmp) for (const [sym, p] of cmp) if (!cur.has(sym) && !p.r.fetch_error && !p.f.length) dropped.push({r: ghost(sym, p.r.name), gone: 1});
+  C = {pass, missed, dropped, notScanned, isNew, hasCmp: !!cmp, pset: new Set(pass.map(r => r.symbol))};
 }
+const ghost = (symbol, name) => ({symbol, name, ghost: 1}); // a stock not in the shown file
+// Per stock sessions and Strength, redone only when the history or the shown file changes
+let T = {};
+function tracks() {
+  if (T.h === H && T.rows === S.rows) return T;
+  T = {h: H, rows: S.rows, m: new Map(), dis: 0};
+  if (H.state !== "ok" || !S.rows) return T;
+  for (const r of S.rows) T.m.set(r.symbol, info(r.symbol, r));
+  if (H.src[S.date] === "live" && !(S.meta && S.meta.final === false)) T.dis = disagree(H, S.rows, S.date);
+  T.k = knocking(new Map([...T.m].map(([k, v]) => [k, v.t])), S.rows.filter(r => !r.fetch_error));
+  return T;
+}
+function info(sym, row) { const t = track(H, sym, row, S.date); return {t, strict: strength(t, "strict"), loose: strength(t, "loose")}; }
+const daysOf = r => { const i = H.state === "ok" && PRESETS[S.preset] && (tracks().m.get(r.symbol) || info(r.symbol, null)); return i ? i[S.preset].days : null; };
 
 // ------------------------------------------------------------------ render
 const COLS = [
   {k: "symbol", t: "Symbol", hl: 1},
+  {k: "days", t: "Days in", hl: 1, v: daysOf, f: r => daysText(H, S.preset, daysOf(r))},
   {k: "cci20", t: "CCI(20)", hl: 1, f: r => r.cci20 === null ? "—" : r.cci20.toFixed(1)},
   {k: "close", t: "Price ₱", hl: 1, f: r => price(r.close)},
   {k: "value_today", t: "Price × vol", hl: 1, x: 1, f: r => money(r.value_today)},
@@ -599,43 +772,55 @@ function renderHead() {
     tr.append(th);
   }
 }
+function slBadge(r) { // muted without history
+  const i = H.state === "ok" && (tracks().m.get(r.symbol) || info(r.symbol, null)), now = i && i.t.at(-1);
+  return el("span", {cls: "sl", "aria-label": now ? "Strict " + WORD[now.strict] + ", Loose " + WORD[now.loose] : null},
+    el("b", {cls: now ? now.strict : null, text: "S"}), el("b", {cls: now ? now.loose + " l" : "l", text: "L"}));
+}
+const WORD = {p: "on", m: "missed by one rule", n: "off", o: "no record"};
 function cell(c, r) {
   if (c.k === "symbol") {
-    return el("td", {cls: "hl"}, r.symbol, C.isNew.has(r.symbol) ? el("span", {cls: "badge", text: "NEW"}) : null, el("span", {cls: "nm", text: r.name || ""}));
+    return el("td", {cls: "hl"}, r.symbol, C.isNew.has(r.symbol) ? el("span", {cls: "badge", text: "NEW"}) : null,
+      r.pass_strict && r.pass_loose ? el("span", {cls: "badge both", text: "BOTH"}) : null, S.q.trim() ? slBadge(r) : null, el("span", {cls: "nm", text: r.name || ""}));
   }
   const v = r[c.k];
-  return el("td", {cls: (c.hl ? "hl " : "") + (c.x ? "x " : "") + (c.c && v ? (v > 0 ? "up" : "down") : "")}, c.f(r));
+  return el("td", {cls: (c.hl ? "hl " : "") + (c.x ? "x " : "") + (c.c && v ? (v > 0 ? "up" : "down") : "")}, r.ghost && c.k !== "days" ? "—" : c.f(r));
 }
 function tableRows() {
   let rs = S.view === "new" ? C.pass.filter(r => C.isNew.has(r.symbol))
     : S.view === "dropped" ? C.dropped.map(e => e.r) : S.view === "missed" ? C.missed.map(e => e.r) : C.pass;
   const q = S.q.trim().toLowerCase();
-  if (q) rs = rs.filter(r => r.symbol.toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q));
-  const {k, dir} = S.sort;
-  return rs.slice().sort((a, b) => {
-    const x = a[k], y = b[k];
+  if (q) { // every stock in the shown file, plus symbols only in history
+    rs = S.rows.filter(r => r.symbol.toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q));
+    const have = new Set(S.rows.map(r => r.symbol));
+    if (H.by) for (const sym of H.by.keys()) if (!have.has(sym) && sym.toLowerCase().includes(q)) rs.push(ghost(sym, null));
+  }
+  const {k, dir} = S.sort, g = (COLS.find(c => c.k === k) || {}).v || (r => r[k]);
+  return rs.map(r => [r, g(r)]).sort(([, x], [, y]) => {
+    x = x === undefined ? null : x; y = y === undefined ? null : y;
     if (x === null || y === null) return x === null ? (y === null ? 0 : 1) : -1; // empty last
     return (typeof x === "string" ? x.localeCompare(y) : x - y) * dir;
-  });
+  }).map(([r]) => r);
+}
+function opener(tr, sym) { // opens the stock panel
+  tr.dataset.sym = sym; tr.tabIndex = 0;
+  tr.addEventListener("click", () => openPanel(sym, tr));
+  tr.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPanel(sym, tr); } });
+  return tr;
 }
 function render() {
   if (!S.rows) return renderEmpty();
   renderHead();
-  const tb = $("tb"), frag = document.createDocumentFragment(), rs = tableRows();
+  const tb = $("tb"), frag = document.createDocumentFragment(), rs = tableRows(), q = S.q.trim();
   for (const r of rs) {
-    const open = S.open.has(r.symbol);
-    const tr = el("tr", {cls: "main", "aria-expanded": String(open)});
+    const tr = opener(el("tr", {cls: "main" + (q && !C.pset.has(r.symbol) ? " dim" : "")}), r.symbol);
     for (const c of COLS) tr.append(cell(c, r));
-    const dl = el("dl");
-    for (const c of COLS) if (c.x) dl.append(el("dt", {cls: "muted", text: c.t}), el("dd", {text: c.f(r)}));
-    const det = el("tr", {cls: "det" + (open ? " open" : "")}, el("td", {colspan: COLS.length}, dl));
-    tr.addEventListener("click", () => {
-      if (S.open.has(r.symbol)) S.open.delete(r.symbol); else S.open.add(r.symbol);
-      det.classList.toggle("open"); tr.setAttribute("aria-expanded", String(det.classList.contains("open")));
-    });
-    frag.append(tr, det);
+    frag.append(tr);
   }
   tb.textContent = ""; tb.append(frag);
+  const note = [q && rs.length ? rs.length + " match" + (rs.length === 1 ? "" : "es") + " among every scanned stock · clear the search to see the table again" : "",
+    S.preset === "custom" ? "Days in: history covers Strict and Loose only." : ""].filter(Boolean).join(" ");
+  $("tnote").hidden = !note; $("tnote").textContent = note;
   const empty = $("tblempty");
   empty.hidden = rs.length > 0;
   if (!rs.length) empty.textContent = S.q ? "No stocks match “" + S.q + "”. Clear the search."
@@ -649,22 +834,34 @@ function render() {
     chips.append(el("button", {type: "button", "aria-pressed": String(S.view === v), disabled: n === "—" ? "" : null,
       onclick: () => { S.view = S.view === v && v !== "pass" ? "pass" : v; render(); }}, el("b", {text: n}), t));
 
-  const lst = (id, items, emptyText, why) => {
-    const t = $(id); t.textContent = "";
-    if (!items.length) { t.append(el("tr", null, el("td", {cls: "muted", colspan: 3, text: emptyText}))); return; }
-    for (const it of items) t.append(el("tr", null, el("td", {text: it.r ? it.r.symbol : it.symbol}),
-      el("td", {cls: "muted x", text: (it.r || it).name || ""}), el("td", {cls: why ? "why" : "muted", text: why ? why(it) : it.fetch_error})));
+  const lst = (id, items, emptyText, why, keep, cls = "why") => {
+    const t = $(id); if (!keep) t.textContent = "";
+    if (!items.length) { t.append(el("tr", null, el("td", {cls: "muted", colspan: 4, text: emptyText}))); return; }
+    for (const it of items) { const r = it.r || it; t.append(opener(el("tr", null, el("td", {text: r.symbol}),
+      el("td", {cls: "muted x", text: r.name || ""}), el("td", {cls: why ? cls : "muted"}, ...[].concat(why ? why(it) : it.fetch_error)), el("td", {cls: "go", text: "›"})), r.symbol)); }
   };
   lst("missed", C.missed.slice().sort((a, b) => (b.r.cci20 ?? -1e9) - (a.r.cci20 ?? -1e9)), "No stocks missed by exactly one filter.",
     e => nice(e.f[0], e.r, S.set, S.date));
+  const tk = tracks();
+  $("knp").hidden = H.state !== "ok";
+  if (H.state === "ok") {
+    $("knock").textContent = "";
+    if (!tk.k.strict.length && !tk.k.loose.length) lst("knock", [], "No stock has missed by one rule 3 sessions running.");
+    else for (const p in tk.k) {
+      $("knock").append(el("tr", null, el("td", {cls: "sub", colspan: 4, text: NAME[p]})));
+      lst("knock", tk.k[p], "No stock has missed " + NAME[p] + " by one rule 3 sessions running.",
+        e => [el("b", {text: e.n + " sessions"}), el("span", {cls: "muted", text: " · " + (RULE_NAME[e.rule] || e.rule) + " today"})], true, "");
+    }
+  }
   $("droph").textContent = C.hasCmp ? "Dropped since " + dateLabel(S.cmpDate) : "Dropped";
   lst("dropped", C.dropped, C.hasCmp ? "Nothing dropped." : "Pick a date in Compare with… to see what dropped.",
-    e => [...new Set(e.f.map(f => nice(f, e.r, S.set, S.date)))].join("; "));
+    e => e.gone ? "Not in today's scan" : [...new Set(e.f.map(f => nice(f, e.r, S.set, S.date)))].join("; "));
   $("nsh").textContent = "Not scanned today (" + C.notScanned.length + ")";
   lst("ns", C.notScanned, "Every stock was scanned.");
+  renderPanel();
 }
 function renderEmpty() {
-  $("thr").textContent = ""; $("tb").textContent = ""; $("chips").textContent = "";
+  $("thr").textContent = ""; $("tb").textContent = ""; $("chips").textContent = ""; $("tnote").hidden = $("knp").hidden = true;
   for (const id of ["missed", "dropped", "ns"]) $(id).textContent = "";
   $("tblempty").hidden = false;
   $("tblempty").textContent = S.msg || (S.key ? "Loading results…" : "Paste your key above, or press Load CSV to open a results file.");
@@ -689,6 +886,8 @@ function renderBars() {
   if (S.authErr) bar("err", "Key expired or wrong: paste a new one with access to " + REPO + ". ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
   if (S.refreshErr) bar("", "Couldn't refresh from GitHub (" + S.refreshErr + "). Showing the results saved " + (S.updated ? new Date(S.updated).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "earlier") + ". Reload to try again.");
   if (S.parity) bar("err", "Dashboard logic disagrees with screener for " + S.parity + " stock" + (S.parity === 1 ? "" : "s") + ". If this file was made before a filter change, re-run the screener; otherwise trust its own pass lists until this is fixed.");
+  const dis = S.rows ? tracks().dis : 0;
+  if (dis) bar("err", "History disagrees with today's file for " + dis + " stock" + (dis === 1 ? "" : "s") + ". Trust today's file; the next run rebuilds the history.");
   if (S.fixtureBad) bar("err", "Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing). Trust the screener's own pass lists until this is fixed.");
   const st = S.status;
   if (st && !S.source) {
@@ -713,7 +912,10 @@ function renderCompare() {
   } else sel.value = "";
 }
 function update() { syncControls(); settingsToURL(); compute(); render(); }
-function renderAll() { renderHeader(); renderBars(); renderCompare(); if (S.rows) compute(); render(); }
+function renderAll() {
+  renderHeader(); renderBars(); renderCompare(); if (S.rows) compute(); render();
+  if (S.want && !P && S.rows && (S.rows.some(r => r.symbol === S.want) || H.by && H.by.has(S.want))) { const s = S.want; S.want = null; openPanel(s, null, false); }
+}
 
 // ------------------------------------------------------------------ data
 class AuthError extends Error {}
@@ -746,8 +948,29 @@ function defaultCompare() {
   const prev = S.index.find(e => e.final && cmpOk(e.date));
   return prev ? prev.date : null;
 }
+// x: text, null (no file) or an Error. Only a remote one is cached.
+function setHistory(x, remote) {
+  if (x === null) H = {state: "missing"};
+  else if (x instanceof Error) H = {state: "broken", err: x.message || "no access"};
+  else try { H = parseHistory(x); } catch (e) { H = {state: "broken", err: e.message}; }
+  if (remote) S.htext = typeof x === "string" ? x : null;
+}
+// Storage full: keep the rest without the history
+const saveCache = c => store.set("cache", {...c, history: S.htext}) || store.set("cache", c);
+let hgen = 0; // like gen, for history
+async function loadHist(replaceFile) {
+  if (S.hsrc && !replaceFile) return;
+  const my = ++hgen; S.hsrc = "";
+  const x = await fileText("results/history.csv").catch(e => e);
+  if (my !== hgen) return;
+  if (x instanceof Error && H.state === "ok") return; // keep the history shown
+  setHistory(x, true);
+  const c = store.get("cache", null); if (c) saveCache(c);
+  renderAll();
+}
 async function loadRemote(replaceFile) {
   if (!S.key) return;
+  loadHist(replaceFile); // in parallel: the table doesn't wait for it
   const my = ++gen;
   const stale = () => my !== gen || (S.source && !replaceFile); // a newer load, or a file the user opened, wins
   try {
@@ -765,7 +988,7 @@ async function loadRemote(replaceFile) {
     const ccsv = cd ? await fileText("results/" + cd + ".csv") : null;
     if (my !== gen) return;
     setCompare(ccsv, cd);
-    store.set("cache", {csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
+    saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
     renderAll();
     checkFixture(my);
   } catch (e) {
@@ -796,15 +1019,17 @@ function loadCache() {
   S.holidays = new Set(Array.isArray(c.holidays) ? c.holidays : []);
   setCurrent(c.csv);
   if (c.cmp && cmpOk(c.cmp.date)) setCompare(c.cmp.csv, c.cmp.date);
+  if (typeof c.history === "string") setHistory(c.history, true);
   S.updated = c.at; S.cached = true;
 }
-function readFile(input) {
-  return new Promise((res, rej) => {
-    const f = input.files[0]; if (!f) return rej(new Error("no file"));
+function readFiles(input) {
+  const fs = [...input.files]; input.value = "";
+  return Promise.all(fs.map(f => new Promise((res, rej) => {
     const fr = new FileReader(); fr.onload = () => res({name: f.name, text: fr.result}); fr.onerror = () => rej(fr.error); fr.readAsText(f);
-    input.value = "";
-  });
+  })));
 }
+const readFile = async input => { const [f] = await readFiles(input); if (!f) throw new Error("no file"); return f; };
+const looksLikeHistory = t => t.replace(/^\ufeff/, "").startsWith(HHEAD);
 const looksLikeResults = t => /^﻿?symbol,name,data_date,/.test(t) && !!csvDate(parseCSV(t));
 
 // ------------------------------------------------------------------ run now
@@ -859,6 +1084,115 @@ async function runNow() {
   } finally { running = false; $("run").disabled = false; }
 }
 
+// ------------------------------------------------------------------ stock panel
+function openPanel(sym, from, push = true) {
+  const first = !P;
+  P = {sym, from: from || (P && P.from) || document.activeElement, pushed: first ? push : P.pushed};
+  if (first && push) history.pushState(null, "", pageURL()); else history.replaceState(null, "", pageURL());
+  $("sp").hidden = $("scrim").hidden = false; document.body.classList.add("lock");
+  renderPanel(); $("spx").focus();
+}
+function closePanel(fromBack) {
+  if (!P) return;
+  const {sym, from, pushed} = P; P = null;
+  $("sp").hidden = $("scrim").hidden = true; document.body.classList.remove("lock");
+  if (!fromBack) { if (pushed) history.back(); else history.replaceState(null, "", pageURL()); }
+  const back = from && from.isConnected ? from : [...document.querySelectorAll("[data-sym]")].find(e => e.dataset.sym === sym);
+  if (back) back.focus();
+}
+const md = d => dateLabel(d).replace(/^\w+, /, ""); // "Oct 29"
+function renderPanel() {
+  if (!P) return;
+  const sym = P.sym, row = (S.rows || []).find(r => r.symbol === sym), b = $("spb"), add = (...k) => b.append(...k);
+  const ok = row && !row.fetch_error, on = p => ok && !failures(row, PRESETS[p], S.date).length;
+  $("sps").textContent = sym; $("spn").textContent = row && row.name || ""; b.textContent = "";
+  const hs = H.state === "ok" && H.by.get(sym), cs = S.cmpRows && S.cmpRows.some(r => r.symbol === sym) ? S.cmpDate : null;
+  const seen = [hs ? [...hs.keys()].pop() : null, cs].filter(Boolean).sort().pop();
+  add(el("div", {cls: "status"}, !row ? "Not in today's scan" + (seen ? ", last seen " + dateLabel(seen) : "")
+    : !ok ? "Not scanned today (" + row.fetch_error + ")"
+    : on("strict") ? (on("loose") ? "On Strict and Loose" : "On Strict") : on("loose") ? "On Loose" : "On neither",
+  row && row.pass_strict && row.pass_loose ? el("span", {cls: "badge both", text: "BOTH"}) : null, el("span", {cls: "small muted", text: " · " + dateLabel(S.date)})));
+  if (ok && !(on("strict") && on("loose"))) {
+    add(el("h3", {text: "Fails today"}));
+    for (const p in PRESETS) if (!on(p)) add(el("b", {cls: "small", text: NAME[p]}),
+      el("ul", {cls: "fail why small"}, ...[...new Set(failures(row, PRESETS[p], S.date).map(f => nice(f, row, PRESETS[p], S.date)))].map(t => el("li", {text: t}))));
+  }
+  add(el("h3", {text: "Strength"}));
+  if (H.state !== "ok") add(el("div", {cls: "status" + (H.state === "broken" ? " why" : "")}, H.state === "loading" ? "Loading history…"
+    : H.state === "missing" ? "History starts after the next run." : "History file can't be read (" + H.err + ")." + (S.rows ? " Today's results still work." : "")));
+  else {
+    const i = tracks().m.get(sym) || info(sym, row || null), g = el("div", {cls: "grid"}, el("div"), el("div", {cls: "h", text: "Strict"}), el("div", {cls: "h", text: "Loose"}));
+    const line = (t, f) => g.append(el("div", {text: t}), ...["strict", "loose"].map(p => el("div", null, f(i[p]))));
+    line("Days in", k => el("b", {text: k.days}));
+    line("Last 20 sessions", k => k.last20 + " of 20");
+    line("Joined this time", k => !k.join ? "—" : k.days ? md(k.join) : "Last in " + md(k.join));
+    line("Since it joined this time", k => k.chg === null ? "—" : el("span", {cls: k.chg > 0 ? "up" : k.chg < 0 ? "down" : null, text: spct(k.chg * 100)}));
+    add(g, el("h3", {text: "Last " + Math.min(60, i.t.length) + " sessions"}), ...strip(i.t),
+      el("div", {cls: "legend"}, ...[["p", "S line lit: on Strict"], ["p l", "L line lit: on Loose"], ["m", "Missed by one rule (data gaps not counted)"], ["n", "Neither"], ["o", "No record"]]
+        .map(([c, t]) => el("span", null, el("i", {cls: "c " + c, style: c === "p l" ? "background:var(--accent2)" : null}), t))),
+      el("div", {cls: "note", text: "Both lines lit in one column: on both that day. Data gaps (no trade, short history, no market cap) never count as a miss."}));
+  }
+  if (ok) {
+    add(el("h3", {text: "Today"}));
+    const dl = el("dl"); for (const c of COLS) if (c.f && c.k !== "days") dl.append(el("dt", {text: c.t}), el("dd", {cls: c.c && row[c.k] ? (row[c.k] > 0 ? "up" : "down") : null, text: c.f(row)}));
+    add(dl);
+  }
+  if (H.state === "ok") {
+    const n = H.dates.filter(d => d < S.date && H.src[d] === "rebuilt").length;
+    add(el("div", {cls: "note"}, n ? "Includes " + n + " rebuilt session" + (n === 1 ? "" : "s") + " (market caps and the stock list as of the backfill). " : "",
+      "PSE EDGE prices: a stock dividend can show as a fall."));
+  }
+}
+// The last 60 sessions: blocks of 30, an S line over an L line; one slider control
+function strip(t) {
+  const cols = t.slice(-60), n = cols.length, nb = Math.ceil(n / 30), pad = nb * 30 - n, cells = [];
+  const box = el("div", {cls: "strip", role: "slider", tabindex: 0, "aria-label": "Sessions", "aria-valuemin": 1, "aria-valuemax": n});
+  const day = el("div", {cls: "small", "aria-live": "polite", style: "margin-top:2px"});
+  const kind = i => i < 0 ? "pad" : cols[i].via === "rebuilt" ? "rebuilt" : "live";
+  for (let b = 0; b < nb; b++) {
+    const lo = b * 30 - pad;
+    for (const p of ["strict", "loose"]) {
+      box.append(el("div", {cls: "lbl"}, p === "strict" ? md(cols[Math.max(0, lo)].d) + " " : null, el("b", {text: p[0].toUpperCase()})));
+      const ln = el("div", {cls: "ln " + p[0]});
+      for (let i = lo; i < lo + 30; i++) {
+        const x = cols[i], c = el("i", {cls: x ? "c " + x[p] + (x.via === "rebuilt" ? " reb" : "") : "c"});
+        ln.append(c); if (x) (cells[i] = cells[i] || []).push(c);
+      }
+      box.append(ln);
+    }
+    const sp = el("div", {cls: "span"});
+    for (let i = lo, j; i < lo + 30; i = j) {
+      for (j = i; j < lo + 30 && kind(j) === kind(i); j++);
+      sp.append(el("i", {cls: kind(i), style: "flex:" + (j - i), text: kind(i) === "pad" || j - i < 4 ? "" : kind(i)}));
+    }
+    box.append(el("div"), sp);
+  }
+  let sel = n - 1;
+  const word = (x, p) => x[p] === "p" ? "on " + NAME[p] : x[p] === "m" ? "missed " + NAME[p] + " by one rule (" + (RULE_NAME[x[p === "strict" ? "rs" : "rl"]] || "") + ")" : "not on " + NAME[p];
+  const show = i => {
+    for (const c of cells[sel]) c.classList.remove("sel");
+    sel = Math.min(n - 1, Math.max(0, i)); for (const c of cells[sel]) c.classList.add("sel");
+    const x = cols[sel], what = x.strict === "o" ? "no record" : x.strict === "p" && x.loose === "p" ? "On Strict and Loose"
+      : (word(x, "strict") + ", " + word(x, "loose")).replace(/^./, c => c.toUpperCase());
+    day.textContent = dateLabel(x.d) + " · " + what + (x.strict === "o" ? "" : " · " + (x.via === "today" ? (S.meta && S.meta.final === false ? "provisional" : "live") : x.via));
+    box.setAttribute("aria-valuenow", sel + 1); box.setAttribute("aria-valuetext", day.textContent);
+  };
+  const pick = e => {
+    const lines = [...box.querySelectorAll(".ln")], k = lines.findIndex(l => { const r = l.getBoundingClientRect(); return e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6; });
+    if (k < 0) return;
+    const r = lines[k].getBoundingClientRect(), c = Math.min(29, Math.max(0, Math.floor((e.clientX - r.left) / r.width * 30)));
+    show(Math.max(0, (k >> 1) * 30 - pad + c));
+  };
+  box.addEventListener("pointerdown", pick);
+  box.addEventListener("pointermove", e => { if (e.buttons) pick(e); });
+  box.addEventListener("keydown", e => {
+    const k = {ArrowLeft: sel - 1, ArrowDown: sel - 1, ArrowRight: sel + 1, ArrowUp: sel + 1, Home: 0, End: n - 1}[e.key];
+    if (k !== undefined) { e.preventDefault(); show(k); }
+  });
+  show(sel);
+  return [box, day];
+}
+
 // ------------------------------------------------------------------ key panel
 function showKey(open) {
   const p = $("keyp"); p.hidden = !open; $("keybtn").setAttribute("aria-expanded", String(open));
@@ -869,6 +1203,7 @@ function showKey(open) {
 
 // ------------------------------------------------------------------ wire up
 function init() {
+  S.want = new URLSearchParams(location.search).get("s"); // reopen the panel once its stock loads
   const s = settingsFromURL();
   if (s && s.set && (s.preset === "custom" || PRESETS[s.preset])) { S.preset = s.preset; S.set = {...STRICT, ...s.set}; }
   if (S.preset !== "custom") S.set = {...PRESETS[S.preset]};
@@ -883,11 +1218,15 @@ function init() {
   $("keyload").addEventListener("click", () => $("file").click());
   $("file").addEventListener("change", async () => {
     try {
-      const f = await readFile($("file"));
-      if (!looksLikeResults(f.text)) { alert("That file isn't a screener results CSV."); return; }
-      gen++;
-      S.source = "from " + f.name; setCurrent(f.text); S.updated = null; S.cached = false; S.msg = null; S.refreshErr = null;
-      if (!cmpOk(S.cmpDate)) setCompare(null);
+      const fs = await readFiles($("file")), hf = fs.find(f => looksLikeHistory(f.text)), f = fs.find(f => f !== hf);
+      if (!fs.length) return;
+      if (f && !looksLikeResults(f.text) || fs.length > (hf ? 2 : 1)) { alert("Pick one screener results CSV, its history.csv, or both."); return; }
+      if (hf) { hgen++; S.hsrc = hf.name; setHistory(hf.text, false); }
+      if (f) {
+        gen++;
+        S.source = "from " + f.name; setCurrent(f.text); S.updated = null; S.cached = false; S.msg = null; S.refreshErr = null;
+        if (!cmpOk(S.cmpDate)) setCompare(null);
+      }
       showKey(false); renderAll();
     } catch { /* cancelled */ }
   });
@@ -911,15 +1250,36 @@ function init() {
   $("keybtn").addEventListener("click", () => showKey($("keyp").hidden));
   $("keysave").addEventListener("click", () => {
     const k = $("keyin").value.trim(); if (!k) return;
-    gen++; S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; showKey(false); renderAll(); loadRemote(true);
+    gen++; S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; H = {state: "loading"}; showKey(false); renderAll(); loadRemote(true);
   });
   $("keyforget").addEventListener("click", () => {
-    gen++; S.key = ""; store.del("key"); store.del("cache");
+    gen++; hgen++; S.key = ""; store.del("key"); store.del("cache"); H = {state: "missing"}; S.htext = null; S.hsrc = "";
     Object.assign(S, {rows: null, date: null, meta: null, index: [], status: null, cmpRows: null, cmpDate: null, source: "", msg: null,
       authErr: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false});
     showKey(true); renderAll();
   });
+  const more = $("more"), menu = $("menu"), items = [...menu.children];
+  const setMenu = o => { menu.hidden = !o; more.setAttribute("aria-expanded", String(o)); if (o) items[0].focus(); };
+  more.addEventListener("click", () => setMenu(menu.hidden));
+  for (const b of items) b.addEventListener("click", () => { setMenu(false); $(b.dataset.go).click(); });
+  menu.addEventListener("keydown", e => {
+    const i = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
+    else if (e.key === "Escape") { setMenu(false); more.focus(); }
+  });
+  document.addEventListener("click", e => { if (!menu.hidden && !more.contains(e.target) && !menu.contains(e.target)) setMenu(false); });
+  menu.addEventListener("focusout", e => { if (!menu.contains(e.relatedTarget) && e.relatedTarget !== more && e.relatedTarget) setMenu(false); });
+  $("spx").addEventListener("click", () => closePanel());
+  $("scrim").addEventListener("click", () => closePanel());
+  $("sp").addEventListener("keydown", e => { // Esc closes; Tab stays inside
+    if (e.key === "Escape") { e.preventDefault(); closePanel(); return; }
+    if (e.key !== "Tab") return;
+    const f = [...$("sp").querySelectorAll("button,[tabindex='0'],a[href]")], i = f.indexOf(document.activeElement);
+    if (e.shiftKey ? i <= 0 : i === f.length - 1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
+  });
+  window.addEventListener("popstate", () => { const s = new URLSearchParams(location.search).get("s"); if (!s) closePanel(true); else if (!P) openPanel(s, null, false); });
   document.addEventListener("keydown", e => {
+    if (P) return;
     if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
     if (e.key === "/") { e.preventDefault(); $("q").focus(); }
     else if (e.key === "r" && confirm("Run the screener now?")) runNow();

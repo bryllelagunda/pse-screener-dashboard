@@ -1,8 +1,10 @@
 // Parity check: the browser's filter logic must match pse_screener.evaluate exactly.
 // The fixture and results live in the PRIVATE pse-screener repository, so this runs locally:
-//   node tests/parity.mjs [path/to/pse-screener] [results.csv ...]
+//   node tests/parity.mjs [path/to/pse-screener] [results.csv ...] [history.csv]
 // It checks every case in tests/fixtures/filter_cases.json, then (for each CSV given) that the
-// recomputed Strict/Loose pass flags and reason text equal the screener's own columns.
+// recomputed Strict/Loose pass flags and reason text equal the screener's own columns, and that
+// history.csv's rows for that date equal the rows the browser derives (section 6). A file whose
+// header is the history header is read as history; otherwise <pse-screener>/results/history.csv.
 import {readFileSync, existsSync} from "node:fs";
 import {execFileSync} from "node:child_process";
 import {join, dirname} from "node:path";
@@ -10,11 +12,14 @@ import {fileURLToPath} from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const html = readFileSync(join(here, "..", "index.html"), "utf8");
-const src = html.slice(html.indexOf("/* FILTER-START"), html.indexOf("/* FILTER-END */"));
-if (!src) throw new Error("filter block markers not found in index.html");
-const {PRESETS, evaluate, parseCSV, fmt} = new Function(src + "; return {PRESETS, evaluate, parseCSV, fmt};")();
+const src = html.slice(html.indexOf("/* FILTER-START"), html.indexOf("/* FILTER-END */")) +
+  html.slice(html.indexOf("/* HISTORY-START"), html.indexOf("/* HISTORY-END */"));
+if (!src.includes("HISTORY-START")) throw new Error("filter or history block markers not found in index.html");
+const {PRESETS, evaluate, parseCSV, fmt, parseHistory, dayRows, HHEAD} = new Function(src + "; return {PRESETS, evaluate, parseCSV, fmt, parseHistory, dayRows, HHEAD};")();
 
-const [repo = join(here, "..", "..", "pse-screener"), ...csvs] = process.argv.slice(2);
+const [repo = join(here, "..", "..", "pse-screener"), ...args] = process.argv.slice(2);
+const isHist = p => readFileSync(p, "utf8").replace(/^\ufeff/, "").split(/\r?\n|\r/)[0] === HHEAD;
+const csvs = args.filter(p => !isHist(p)), histPath = args.find(isHist) || join(repo, "results", "history.csv");
 let bad = 0;
 const fail = msg => { bad++; console.log("FAIL " + msg); };
 
@@ -99,6 +104,27 @@ for (const path of csvs) {
   }
   console.log("parseCSV: 3 line-ending variants");
 }
+
+// 6. History rows vs the rows the browser derives from each results file (pass flags and miss rule, both ways).
+// Value: protects=the page's Days in, streaks and "History disagrees" bar use the same kept rows and miss rule as the screener;
+//   fails_when=a data-gap or miss-rule mapping drifts, or a kept row is missing on either side; prints symbols only, never values;
+//   no_claim=close values, sessions before the given files' dates.
+if (csvs.length && existsSync(histPath)) {
+  let H = null;
+  try { H = parseHistory(readFileSync(histPath, "utf8")); } catch (e) { fail(`history: can't be read (${e.message})`); }
+  for (const path of H ? csvs : []) {
+    const rows = parseCSV(readFileSync(path, "utf8")), date = (rows.find(r => r.data_date) || {}).data_date;
+    if (H.src[date] !== "live") { console.log(`history: ${path} (${date}) is not a live day in history, skipped`); continue; }
+    const mine = dayRows(rows, date), syms = new Set(mine.keys());
+    for (const [s, m] of H.by) if (m.has(date)) syms.add(s);
+    for (const s of syms) {
+      const a = mine.get(s), b = H.by.has(s) && H.by.get(s).get(date);
+      if (!a || !b) fail(`history ${date} ${s}: row only in ${a ? "the results file" : "history"}`);
+      else for (const k of ["strict", "loose", "miss_strict", "miss_loose"]) if (a[k] !== b[k]) fail(`history ${date} ${s}: ${k} differs`);
+    }
+    console.log(`history: ${path} (${date}), ${syms.size} kept rows compared`);
+  }
+} else console.log("history: no history file or results CSV given, skipped");
 
 console.log(bad ? `${bad} mismatch(es)` : "parity OK");
 process.exit(bad ? 1 : 0);

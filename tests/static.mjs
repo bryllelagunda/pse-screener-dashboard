@@ -10,7 +10,7 @@ const html = readFileSync(join(root, "index.html"), "utf8");
 const errs = [];
 const check = (ok, msg) => { if (!ok) errs.push(msg); };
 
-check(Buffer.byteLength(html) < 60 * 1024, `index.html is ${Buffer.byteLength(html)} bytes (limit 60 KB)`);
+check(Buffer.byteLength(html) < 80 * 1024, `index.html is ${Buffer.byteLength(html)} bytes (limit 80 KB)`);
 const CSP = "default-src 'self'; connect-src https://api.github.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 const csps = [...html.matchAll(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/gi)];
 check(csps.length === 1 && csps[0][1] === CSP, "CSP meta tag missing, duplicated or changed");
