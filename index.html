@@ -123,9 +123,9 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 @media (max-width:639px){
  .x,#load,#keybtn{display:none}
  .ph{display:inline-block}
- td .nm{max-width:130px}
- th,td{padding:8px 4px}
- #tb td:first-child{white-space:normal}
+ td .nm{max-width:100px}
+ th,td{padding:8px 3px}
+ thead th button{padding:14px 3px}
  header .wrap>div:last-child{width:100%}
  #run,#cmp{flex:1}
  #runst{order:9;width:100%}#runst:empty{display:none}
@@ -136,6 +136,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
  #sp{width:100%;border-left:0}
  #scrim{display:none}
 }
+@media (max-width:379px){th{white-space:normal}}
 </style>
 </head>
 <body>
@@ -784,7 +785,7 @@ const WORD = {p: "on", m: "missed by one rule", n: "off", o: "no record"};
 function cell(c, r) {
   if (c.k === "symbol") {
     return el("td", {cls: "hl"}, r.symbol, C.isNew.has(r.symbol) ? el("span", {cls: "badge", text: "NEW"}) : null,
-      r.pass_strict && r.pass_loose ? el("span", {cls: "badge both", text: "BOTH"}) : null, S.q.trim() ? slBadge(r) : null, el("span", {cls: "nm", text: r.name || ""}));
+      S.q.trim() ? slBadge(r) : r.pass_strict && r.pass_loose ? el("span", {cls: "badge both", text: "BOTH"}) : null, el("span", {cls: "nm", text: r.name || ""}));
   }
   const v = r[c.k];
   return el("td", {cls: (c.hl ? "hl " : "") + (c.x ? "x " : "") + (c.c && v ? (v > 0 ? "up" : "down") : "")}, r.ghost && c.k !== "days" ? "—" : c.f(r));
@@ -853,7 +854,7 @@ function render() {
     else for (const p in tk.k) {
       $("knock").append(el("tr", null, el("td", {cls: "sub", colspan: 4, text: NAME[p]})));
       lst("knock", tk.k[p], "No stock has missed " + NAME[p] + " by one rule 3 sessions running.",
-        e => [el("b", {text: e.n + " sessions"}), el("span", {cls: "muted", text: " · " + (RULE_NAME[e.rule] || e.rule) + " today"})], true, "");
+        e => [el("b", {text: e.n + " sessions"}), el("span", {cls: "muted", text: " · " + (RULE_NAME[e.rule] || e.rule) + (e.rule === "vt" ? "" : " today")})], true, "");
     }
   }
   $("droph").textContent = C.hasCmp ? "Dropped since " + dateLabel(S.cmpDate) : "Dropped";
