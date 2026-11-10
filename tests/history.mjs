@@ -16,7 +16,9 @@ const {PRESETS, parseHistory, missRule, dayRows, track, strength, knocking, disa
   "; return {PRESETS, parseHistory, missRule, dayRows, track, strength, knocking, disagree, daysText, HHEAD};")();
 
 let bad = 0, n = 0;
-const eq = (got, want, what) => { n++; if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
+// Failures never print a close or a change (R5), even made-up ones.
+const show = x => JSON.stringify(x, (k, v) => k === "close" || k === "chg" ? "<hidden>" : v);
+const eq = (got, want, what) => { n++; if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${what}: got ${show(got)}, want ${show(want)}`); } };
 const err = (f) => { try { f(); return null; } catch (e) { return e.message; } };
 
 // A made-up stock that passes both presets; overrides make it fail one rule or hit a data gap.
@@ -48,6 +50,7 @@ for (const [text, want, what] of [
   [hist(marker("2026-10-29", "missing"), "2026-10-29,ZZA,missing,true,true,,,1"), "row 3: stock row without its session row", "a stock row on a no-record day"],
   [hist(marker("2026-10-29"), "2026-10-29,ZZA,rebuilt,true,true,,,1"), "row 3: stock row without its session row", "a stock row whose source differs from its session"],
   [hist(marker("2026-10-29"), "2026-10-29,ZZA,live,true,true,,,1", "2026-10-29,ZZA,live,true,true,,,1"), "row 4: repeated stock", "a repeated stock"],
+  [hist(marker("2026-10-29"), '2026-10-29,ZZA,live,true,true,,,"1'), "unclosed quote", "a row cut off inside a quote"],
 ]) eq(err(() => parseHistory(text)), want, what + " rejects the whole file");
 
 // 2. "Missed by one rule": one failure that is not a data gap.
@@ -62,7 +65,7 @@ for (const [o, what] of [[{stale: true}, "no trade"], [{fetch_error: "HTTP 500"}
   const H = parseHistory(hist(marker("2026-10-27"), "2026-10-27,ZZA,live,true,true,,,40", marker("2026-10-28"),
     marker("2026-10-29"), "2026-10-29,ZZA,live,true,true,,,40", marker("2026-10-30"), "2026-10-30,ZZA,live,true,false,,roc9,44"));
   const t = track(H, "ZZA", row("ZZA"), D), s = strength(t, "strict");
-  eq([t.length, s.days, s.join, +s.chg.toFixed(4), s.last20], [5, 3, "2026-10-29", 0.25, 4],
+  eq([t.length, s.days, s.join, Math.abs(s.chg - 0.25) < 1e-9, s.last20], [5, 3, "2026-10-29", true, 4],
     "worked example: first passes Oct 29, shown Nov 3: Days in 3, joined Oct 29, change from that close, 4 of the last sessions");
   const l = strength(t, "loose");
   eq([l.days, l.join, l.chg, l.miss], [1, D, 0, 0], "passing on the shown date only: Days in 1, joined that day, no change");

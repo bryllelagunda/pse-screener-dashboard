@@ -291,7 +291,9 @@ function csvRows(text) {
     else f += c;
   }
   if (f !== "" || row.length) { row.push(f); rows.push(row); }
-  return rows.filter(r => r.length > 1 || r[0] !== "");
+  const out = rows.filter(r => r.length > 1 || r[0] !== "");
+  out.open = q; // ended inside a quote: the file is cut short or malformed
+  return out;
 }
 function parseCSV(text) {
   const rows = csvRows(text), head = rows.shift() || [];
@@ -387,6 +389,7 @@ function dayRows(rows, date) {
 function parseHistory(text) {
   const rows = csvRows(text), H = {state: "ok", dates: [], src: {}, by: new Map()};
   if ((rows.shift() || []).join() !== HHEAD) throw new Error("wrong header");
+  if (rows.open) throw new Error("unclosed quote");
   rows.forEach((c, i) => {
     const bad = w => { throw new Error("row " + (i + 2) + ": " + w); }, [d, sym, src, s, l, ms, ml, cl] = c;
     if (c.length !== 8) bad("wrong number of cells");
@@ -956,7 +959,7 @@ function setHistory(x, remote) {
   if (remote) S.htext = typeof x === "string" ? x : null;
 }
 // Storage full: keep the rest without the history
-const saveCache = c => store.set("cache", {...c, history: S.htext}) || store.set("cache", c);
+const saveCache = c => store.set("cache", {...c, history: S.htext}) || store.set("cache", {...c, history: null});
 let hgen = 0; // like gen, for history
 async function loadHist(replaceFile) {
   if (S.hsrc && !replaceFile) return;
@@ -1216,9 +1219,12 @@ function init() {
   $("run").addEventListener("click", runNow);
   $("load").addEventListener("click", () => $("file").click());
   $("keyload").addEventListener("click", () => $("file").click());
+  let pick = 0; // a later pick wins over a slower earlier read
   $("file").addEventListener("change", async () => {
     try {
-      const fs = await readFiles($("file")), hf = fs.find(f => looksLikeHistory(f.text)), f = fs.find(f => f !== hf);
+      const my = ++pick, fs = await readFiles($("file"));
+      if (my !== pick) return;
+      const hf = fs.find(f => looksLikeHistory(f.text)), f = fs.find(f => f !== hf);
       if (!fs.length) return;
       if (f && !looksLikeResults(f.text) || fs.length > (hf ? 2 : 1)) { alert("Pick one screener results CSV, its history.csv, or both."); return; }
       if (hf) { hgen++; S.hsrc = hf.name; setHistory(hf.text, false); }
