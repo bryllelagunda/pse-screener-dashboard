@@ -597,6 +597,7 @@ function summaryLine(C, s) {
   return (p ? [p] : []).concat(countsText(s.name, !!p, c, C.hasCmp ? s.cmp : null));
 }
 // Share of the whole scan above its 200-day average; rows without a number count in neither part
+// The 35% and 65% cut-offs are a starting guess, to revisit after the Strict vs Loose track record (TODOS T-11)
 function mood(rows, cmpRows) {
   const share = rs => {
     const v = (rs || []).map(r => r.pct_vs_sma200).filter(x => typeof x === "number" && Number.isFinite(x));

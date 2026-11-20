@@ -51,6 +51,8 @@ eq(line(Cx(3, 0, 0, 0), {missed: true}).startsWith("From Thu, Nov 19 (not today'
 eq(line(Cx(3, 0, 0, 0), {provisional: true, status: {state: "failed"}, ...hol}).startsWith("Provisional (during trading): **Strict**: "), true, "provisional wins over holiday and stale");
 eq(line(Cx(3, 0, 0, 0), {date: "2026-11-20", now: at("2026-11-23T09:00")}).startsWith("**Strict** today"), true, "Friday's data on Monday: no prefix (a weekend is not a holiday)");
 eq(line(Cx(3, 0, 0, 0), {date: "2026-11-18", now: at("2026-11-20T09:00")}).startsWith("**Strict** today"), true, "no prefix without a holiday, a stale status or a missed run");
+eq(line(Cx(3, 0, 0, 0), {date: "2026-11-27", holidays: new Set(["2026-11-30"]), now: at("2026-11-30T09:00")}).startsWith("PSE was closed Mon, Nov 30 (holiday). Latest session, Fri, Nov 27: "), true, "today itself is the holiday");
+eq(line(Cx(3, 0, 0, 0), {date: "2026-11-25", holidays: new Set(["2026-11-26"]), now: at("2026-11-30T09:00")}).startsWith("**Strict** today"), true, "a holiday, then a normal weekday with no data: no holiday prefix");
 // Line 2, market mood: share of rows with a number; cut-offs 35 and 65 whole percent; 50-row floor
 const rows = (up, n, nulls = 0) => [...Array.from({length: n}, (_, i) => ({pct_vs_sma200: i < up ? 2 : -2})), ...Array.from({length: nulls}, () => ({pct_vs_sma200: null}))];
 eq([mood(rows(34, 100)).word, mood(rows(35, 100)).word, mood(rows(65, 100)).word, mood(rows(66, 100)).word], ["weak", "mixed", "mixed", "strong"], "35% and 65% edges");
@@ -62,6 +64,7 @@ eq(txt(moodLine(mood(rows(29, 100), rows(33, 100)), "Wed, Nov 18")), "Market moo
 eq(txt(moodLine(mood(rows(44, 100), rows(44, 100)), "Tue, Nov 17")), "Market mood: **mixed**. 44% of 100 stocks are above their 200-day average (same as 44% on Tue, Nov 17).", "same as");
 eq(txt(moodLine(mood(rows(44, 100), rows(20, 40)), "Tue, Nov 17")), "Market mood: **mixed**. 44% of 100 stocks are above their 200-day average.", "compare file under 50 numbers: no comparison");
 eq(txt(moodLine(null, "x")), "Market mood: not enough data today.", "not enough data words");
+eq(txt(moodLine(mood(rows(46, 100), rows(41, 100)), null)), "Market mood: **mixed**. 46% of 100 stocks are above their 200-day average.", "no compare date name: no comparison");
 // ? explanations: every plain label of plan § 7 has one, and every label the page shows with a ? is in TIPS
 const LABELS = ["Stock", "Days on list", "Momentum", "Price ₱", "Traded today", "Today %", "Daily swing", "9-day change", "Below year high", "vs 50-day avg",
   "vs 200-day avg", "Company size", "Usual daily trading", "Price above 200-day average", "Price above 50-day average", "50-day average above 200-day",
