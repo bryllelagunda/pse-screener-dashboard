@@ -52,10 +52,10 @@ eq(nameError("renamed", full, "s3"), "", "renaming with 20 sets is allowed");
 eq([sameSet(STRICT, with_({})), sameSet(STRICT, with_({atr_band: [1, 5]})), sameSet(STRICT, LOOSE)], [true, false, false], "sameSet compares every key");
 
 // summary
-eq(summary(STRICT), "Price > SMA200 · Price > SMA50 · SMA50 > SMA200 · ROC ≥ 5% · Mkt cap ≥ ₱1B · Price > ₱1 · 30D value > ₱5M · 52W high 0–20% below · ATR 1–4%", "Strict summary");
-eq(summary(LOOSE), "Price > SMA200 · SMA50 > SMA200 · ROC ≥ 0% · Mkt cap ≥ ₱500M · Price > ₱1 · 30D value > ₱5M · Today's value > ₱10M · 52W high 0–30% below · ATR 1–6%", "Loose summary");
+eq(summary(STRICT), "Price above 200-day average · Price above 50-day average · 50-day average above 200-day · 9-day change at least 5% · Company size at least ₱1B · Price above ₱1 · Usual daily trading above ₱5M · Below year high 0–20% · Daily swing between 1% and 4%", "Strict summary");
+eq(summary(LOOSE), "Price above 200-day average · 50-day average above 200-day · 9-day change at least 0% · Company size at least ₱500M · Price above ₱1 · Usual daily trading above ₱5M · Traded today above ₱10M · Below year high 0–30% · Daily swing between 1% and 6%", "Loose summary");
 eq(summary({above_sma200: false, above_sma50: false, sma50_above_sma200: false, roc9_min: -20, price_min: 0, avg_value_min: 0, mcap_min: 0,
-  value_today_min: 0, high_band: [0, 100], atr_band: [0, 15]}), "ROC ≥ -20% · 52W high 0–100% below · ATR 0–15%", "all-off summary leaves out off filters");
+  value_today_min: 0, high_band: [0, 100], atr_band: [0, 15]}), "9-day change at least -20% · Below year high 0–100% · Daily swing between 0% and 15%", "all-off summary leaves out off filters");
 
 if (bad) { console.log(`${bad} of ${n} checks failed`); process.exit(1); }
 console.log(`screens OK (${n} checks)`);

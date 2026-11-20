@@ -129,15 +129,27 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 @keyframes f{from{opacity:.4}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fade{animation:none}}
 .ph{display:none}
+.q{all:unset;box-sizing:border-box;position:relative;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:0 2px 0 4px;border:1px solid var(--line);border-radius:50%;font-size:12px;font-weight:700;color:var(--accent2);cursor:pointer;vertical-align:middle;flex:none}
+.q::after{content:"";position:absolute;inset:-8px}
+.q:hover,.q[aria-expanded=true]{border-color:var(--accent)}
+.q:focus-visible{outline:2px solid var(--accent)}
+#tip{position:absolute;z-index:30;max-width:280px;background:#262b35;border:1px solid var(--accent);border-radius:10px;padding:10px 12px;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+#tip b{display:block;margin-bottom:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+thead th{vertical-align:bottom}
+thead th .th{display:flex;align-items:center;justify-content:flex-end}
+thead th:first-child .th{justify-content:flex-start}
+thead th .th button:first-child{width:auto;white-space:normal}
+.sum p{margin:0}.sum p+p{margin-top:6px;color:var(--muted)}.sum b.n{font-size:17px}.sum.res{min-height:76px}
 .steps{margin:8px 0 0;padding-left:20px}.steps li{margin:4px 0}
 .field{display:flex;flex-direction:column;gap:4px;margin-top:10px}.field label{font-size:13px;color:var(--muted)}
 #kdate{max-width:220px;min-height:44px;padding:0 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
 .bar a{margin-left:6px}
+.words dt{font-weight:600;margin-top:10px}.words dd{margin:2px 0 0;color:var(--muted)}
 .ph2{justify-content:space-between}
 .nokey .data{display:none}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media (max-width:639px){
- .x,#keybtn{display:none}
+ .x,#keybtn,th .q{display:none}
  .ph{display:inline-block}
  td .nm{max-width:100px}
  th,td{padding:8px 3px}
@@ -178,6 +190,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
  </section>
  <div id="bars"></div>
  <div id="keylive" class="sr" role="status"></div>
+ <section id="sum" class="panel sum" hidden><p id="sum1"></p><p id="sum2"></p></section>
  <div id="calm"></div>
  <section id="keyp" class="panel" hidden>
   <h2 id="keyh">Connect your private results</h2>
@@ -200,17 +213,17 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
  </section>
  <section class="panel data" id="controls">
   <div class="row" role="group" aria-label="Filter set" id="sets">
-   <button type="button" data-p="strict">Strict</button>
-   <button type="button" data-p="loose">Loose</button>
-   <button type="button" data-p="custom">Custom</button>
+   <button type="button" data-p="strict">Strict</button><button class="q" data-tip="Strict"></button>
+   <button type="button" data-p="loose">Loose</button><button class="q" data-tip="Loose"></button>
+   <button type="button" data-p="custom">Custom</button><button class="q" data-tip="Custom"></button>
    <button id="ftog" type="button" aria-expanded="true" aria-controls="fbody">Hide filters ▴</button>
   </div>
   <div id="fsum" class="fsum small muted" hidden></div>
   <div id="fbody">
    <div class="checks">
-    <label><input type="checkbox" id="above_sma200">Price &gt; SMA200</label>
-    <label><input type="checkbox" id="above_sma50">Price &gt; SMA50</label>
-    <label><input type="checkbox" id="sma50_above_sma200">SMA50 &gt; SMA200</label>
+    <span><label><input type="checkbox" id="above_sma200">Price above 200-day average</label><button class="q" data-tip="Price above 200-day average"></button></span>
+    <span><label><input type="checkbox" id="above_sma50">Price above 50-day average</label><button class="q" data-tip="Price above 50-day average"></button></span>
+    <span><label><input type="checkbox" id="sma50_above_sma200">50-day average above 200-day</label><button class="q" data-tip="50-day average above 200-day"></button></span>
    </div>
    <div class="row">
     <button id="saveas" type="button">Save as…</button>
@@ -236,13 +249,18 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
   <table id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tb"></tbody></table>
   <div id="tblempty" class="empty" hidden></div>
  </section>
- <section class="panel data"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span></h2><table class="list"><tbody id="missed"></tbody></table></section>
- <section class="panel data" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span></h2><table class="list"><tbody id="knock"></tbody></table></section>
+ <section class="panel data"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span><button class="q" data-tip="missed by one filter"></button></h2><table class="list"><tbody id="missed"></tbody></table></section>
+ <section class="panel data" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span><button class="q" data-tip="Knocking on the door"></button></h2><table class="list"><tbody id="knock"></tbody></table></section>
  <section class="panel data"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
  <section class="panel data"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
- <p class="small muted">Prices are read from your private repository with your key. This page stores nothing on any server; your key and a copy of the latest results stay in this browser.</p>
+ <p class="small muted">Prices are read from your private repository with your key. This page stores nothing on any server; your key and a copy of the latest results stay in this browser. <a href="#" id="wordsgo">What the words mean</a></p>
+ <section id="words" class="panel words" hidden>
+  <div class="row ph2"><h2 style="margin:0">What the words mean</h2><button id="wordsx" type="button">Close</button></div>
+  <dl id="wordsl"></dl>
+ </section>
 </main>
 <div id="scrim" hidden></div>
+<div id="tip" role="tooltip" hidden></div><div id="tipsr" class="sr" role="status"></div>
 <aside id="sp" role="dialog" aria-modal="true" aria-labelledby="sps" tabindex="-1" hidden>
  <div class="top"><div><div id="sps"></div><div id="spn" class="small muted"></div></div><button id="spx" type="button" aria-label="Close">✕</button></div>
  <div id="spb"></div>
@@ -385,15 +403,15 @@ function nameError(name, screens, except) {
 const sameSet = (a, b) => Object.keys(STRICT).every(k => Array.isArray(STRICT[k]) ? a[k][0] === b[k][0] && a[k][1] === b[k][1] : a[k] === b[k]);
 function summary(s) {
   const out = [];
-  if (s.above_sma200) out.push("Price > SMA200");
-  if (s.above_sma50) out.push("Price > SMA50");
-  if (s.sma50_above_sma200) out.push("SMA50 > SMA200");
-  out.push("ROC ≥ " + s.roc9_min + "%");
-  if (s.mcap_min > 0) out.push("Mkt cap ≥ " + money(s.mcap_min));
-  if (s.price_min > 0) out.push("Price > " + money(s.price_min));
-  if (s.avg_value_min > 0) out.push("30D value > " + money(s.avg_value_min));
-  if (s.value_today_min > 0) out.push("Today's value > " + money(s.value_today_min));
-  out.push("52W high " + s.high_band[0] + "–" + s.high_band[1] + "% below", "ATR " + s.atr_band[0] + "–" + s.atr_band[1] + "%");
+  if (s.above_sma200) out.push("Price above 200-day average");
+  if (s.above_sma50) out.push("Price above 50-day average");
+  if (s.sma50_above_sma200) out.push("50-day average above 200-day");
+  out.push("9-day change at least " + s.roc9_min + "%");
+  if (s.mcap_min > 0) out.push("Company size at least " + money(s.mcap_min));
+  if (s.price_min > 0) out.push("Price above " + money(s.price_min));
+  if (s.avg_value_min > 0) out.push("Usual daily trading above " + money(s.avg_value_min));
+  if (s.value_today_min > 0) out.push("Traded today above " + money(s.value_today_min));
+  out.push("Below year high " + s.high_band[0] + "–" + s.high_band[1] + "%", "Daily swing between " + s.atr_band[0] + "% and " + s.atr_band[1] + "%");
   return out.join(" · ");
 }
 /* SCREENS-END */
@@ -540,11 +558,94 @@ function missedRun(st, index, holidays, now = new Date()) {
 const showMissed = (s, now = new Date()) => !s.cached && !s.refreshErr && !s.authErr && !!(s.status || s.index.length) &&
   missedRun(s.status, s.index, s.holidays, now);
 /* STATUS-END */
-/* SUMMARY-START: when to refresh (tests/summary.mjs checks it) */
+/* SUMMARY-START: the daily summary, market mood and when to refresh (tests/summary.mjs checks it) */
+// Text parts: a string, or {b} shown bold ({b, n: 1} for the count)
 const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
+// The latest holiday after date when only weekends and holidays follow it up to yesterday (Manila); today counts if it is one
+function closedSince(date, holidays, now) {
+  if (!isDay(date)) return null;
+  const today = manilaISO(now); let last = null;
+  for (let d = addDays(date, 1); d <= today; d = addDays(d, 1)) {
+    if ([0, 6].includes(new Date(d).getUTCDay())) continue;
+    if (holidays.has(d)) last = d; else if (d < today) return null;
+  }
+  return last;
+}
+// One prefix at most, in this order: provisional, holiday, then not today's session
+function dayPrefix(s) {
+  if (s.provisional) return "Provisional (during trading): ";
+  const h = closedSince(s.date, s.holidays, s.now);
+  if (h) return "PSE was closed " + dateLabel(h) + " (holiday). Latest session, " + dateLabel(s.date) + ": ";
+  const st = s.status && s.status.state;
+  return st === "no_new_session" || st === "failed" || s.missed ? "From " + dateLabel(s.date) + " (not today's): " : "";
+}
+// c: counts {pass, isNew, dropped, missed}, cmp: the compare date's label or null
+function countsText(name, prefixed, c, cmp) {
+  const out = [{b: name}, prefixed ? ": " : " today: "], m = c.missed;
+  if (!c.pass) return out.concat(m ? [{b: "no stock passes.", n: 1}, " " + m + " missed by one filter."]
+    : [{b: "no stock passes", n: 1}, ", and none missed by one filter. Quiet days like this are normal."]);
+  out.push({b: plural(c.pass, "stock passes", "stocks pass"), n: 1});
+  if (!cmp) return out.concat(". " + (m ? m + " missed by one filter. " : "") + "Pick a date in Compare with… to see what's new.");
+  const ch = [c.isNew && c.isNew + " new", c.dropped && c.dropped + " dropped"].filter(Boolean).join(" and ");
+  out.push(c.pass === 1 && c.isNew === 1 && !c.dropped ? ", new since " + cmp + "." : ch ? ", " + ch + " since " + cmp + "." : ", the same as " + cmp + ".");
+  return m ? out.concat(" " + m + " more missed by one filter.") : out;
+}
+function summaryLine(C, s) {
+  const p = dayPrefix(s), c = {pass: C.pass.length, isNew: C.isNew.size, dropped: C.dropped.length, missed: C.missed.length};
+  return (p ? [p] : []).concat(countsText(s.name, !!p, c, C.hasCmp ? s.cmp : null));
+}
+// Share of the whole scan above its 200-day average; rows without a number count in neither part
+function mood(rows, cmpRows) {
+  const share = rs => {
+    const v = (rs || []).map(r => r.pct_vs_sma200).filter(x => typeof x === "number" && Number.isFinite(x));
+    return v.length < 50 ? null : {n: v.length, pct: Math.round(v.filter(x => x > 0).length / v.length * 100)};
+  };
+  const now = share(rows), was = share(cmpRows);
+  return now && {...now, word: now.pct < 35 ? "weak" : now.pct > 65 ? "strong" : "mixed", was: was ? was.pct : null};
+}
+function moodLine(m, cmp) {
+  if (!m) return ["Market mood: not enough data today."];
+  const d = m.was === null || !cmp ? "" : " (" + (m.pct > m.was ? "up from " : m.pct < m.was ? "down from " : "same as ") + m.was + "% on " + cmp + ")";
+  return ["Market mood: ", {b: m.word}, ". " + m.pct + "% of " + m.n + " stocks are above their 200-day average" + d + "."];
+}
 // Coming back to the page: reload when nothing has loaded or been tried for 10 minutes, one load at a time
 const shouldRefresh = (s, now, hidden) => !hidden && !!s.key && !s.loading && now - Math.max(s.updated || 0, s.tried || 0) > 10 * 60e3;
 /* SUMMARY-END */
+/* TIPS-START: what each plain-word label means: the ? bubbles and "What the words mean" read this one object (tests/summary.mjs checks it) */
+const TIPS = {
+  "Stock": "The stock's PSE code. Tap the row for its details.",
+  "Days on list": "Trading days in a row this stock has passed the selected set, today included.",
+  "Momentum": "How far today's price is from its usual level over 20 days (CCI 20). Over 100 is a strong push up; under −100 a strong push down.",
+  "Price ₱": "Last closing price, in pesos.",
+  "Traded today": "Pesos traded today: the price times the shares traded.",
+  "Today %": "Change from the previous close.",
+  "Daily swing": "How much the price usually moves in a day, as a share of the price (14-day ATR). Small is calm, big is jumpy.",
+  "9-day change": "Price change over the last 9 trading days (rate of change, ROC 9).",
+  "Below year high": "How far the price is under its highest close of the past year. 0% means at the high.",
+  "vs 50-day avg": "Price compared with its average close over 50 days (SMA 50). Above 0 means above the average.",
+  "vs 200-day avg": "Price compared with its average close over 200 days (SMA 200), the long-term trend.",
+  "Company size": "The market value of all the company's shares (market cap).",
+  "Usual daily trading": "Average pesos traded per day over 30 days. Higher means easier to buy and sell.",
+  "Price above 200-day average": "The price is above its long-term trend.",
+  "Price above 50-day average": "The price is above its medium-term trend.",
+  "50-day average above 200-day": "The medium-term trend is above the long-term one.",
+  "9-day change at least": "Keeps stocks that rose at least this much over 9 trading days.",
+  "Company size at least": "Leaves out companies smaller than this.",
+  "Below year high, %": "Keeps stocks this close to their year high.",
+  "Usual daily trading above": "Leaves out stocks that trade too little to buy and sell easily.",
+  "Traded today above": "Leaves out stocks that traded little today.",
+  "Price above": "Leaves out very cheap shares.",
+  "Daily swing between": "Keeps stocks whose daily moves are in this range.",
+  "Strict": "The tighter set: strong trend, steady moves, bigger companies.",
+  "Loose": "A wider set that lets more stocks in.",
+  "Custom": "Your own slider settings.",
+  "missed by one filter": "Failed exactly one rule today: worth watching.",
+  "Knocking on the door": "Missed by one rule 3 or more trading days running.",
+  "BOTH": "On Strict and Loose today.",
+  "Provisional": "Taken during trading hours; the final numbers come after the close.",
+  "Market mood": "How many stocks are above their 200-day average: a rough read of the whole market's long-term trend. Not a signal to buy or sell.",
+};
+/* TIPS-END */
 /* KEY-START: the key's end date and its reminders (tests/key.mjs checks it). Nothing here sends a request; the date stays on this device. */
 const NAG_BANDS = ["14", "3", "nodate"]; // the bars Later can hide
 const defaultExpiry = (now = new Date()) => addDays(manilaISO(now), 90);
@@ -617,13 +718,13 @@ let H = {state: S.key ? "loading" : "missing"}; // or broken (err), or ok (parse
 // ------------------------------------------------------------------ settings and URL
 const MONEY_STEPS = [0, 1e6, 2e6, 5e6, 1e7, 2e7, 5e7, 1e8];
 const SLIDERS = [
-  {k: "roc9_min", label: "ROC(9) at least", min: -20, max: 30, step: 0.5, show: v => v + "%"},
-  {k: "mcap_min", label: "Market cap at least", steps: [0, 1e8, 2.5e8, 5e8, 1e9, 2e9, 5e9, 1e10, 5e10, 1e11], money: true},
-  {k: "high_band", label: "Below 52-week high, %", band: true, min: 0, max: 100, step: 1},
-  {k: "avg_value_min", label: "30-day avg value above", steps: MONEY_STEPS, money: true},
-  {k: "value_today_min", label: "Today's value above", steps: MONEY_STEPS, money: true},
+  {k: "roc9_min", label: "9-day change at least", min: -20, max: 30, step: 0.5, show: v => v + "%"},
+  {k: "mcap_min", label: "Company size at least", steps: [0, 1e8, 2.5e8, 5e8, 1e9, 2e9, 5e9, 1e10, 5e10, 1e11], money: true},
+  {k: "high_band", label: "Below year high, %", band: true, min: 0, max: 100, step: 1},
+  {k: "avg_value_min", label: "Usual daily trading above", steps: MONEY_STEPS, money: true},
+  {k: "value_today_min", label: "Traded today above", steps: MONEY_STEPS, money: true},
   {k: "price_min", label: "Price above", steps: [0, 0.5, 1, 2, 5, 10, 20, 50, 100], money: true},
-  {k: "atr_band", label: "ATR% (14) between", band: true, min: 0, max: 15, step: 0.5},
+  {k: "atr_band", label: "Daily swing between", band: true, min: 0, max: 15, step: 0.5},
 ];
 const CHECKS = ["above_sma200", "above_sma50", "sma50_above_sma200"];
 const URLK = {above_sma200: "s200", above_sma50: "s50", sma50_above_sma200: "x", roc9_min: "roc", price_min: "price",
@@ -672,7 +773,7 @@ function buildControls() {
   const box = $("sliders");
   for (const c of SLIDERS) {
     const parts = c.band ? [0, 1] : [null];
-    const lab = el("div", {cls: "lab"}, el("span", {text: c.label}));
+    const lab = el("div", {cls: "lab"}, el("span", null, c.label, tipBtn(c.label)));
     const ins = parts.map(i => el("input", {type: "text", inputmode: "decimal", "aria-label": c.label + (i === null ? "" : i ? " maximum" : " minimum")}));
     const ranges = parts.map(i => el("input", {type: "range", "aria-label": c.label + (i === null ? "" : i ? " maximum" : " minimum"),
       min: c.steps ? 0 : c.min, max: c.steps ? c.steps.length - 1 : c.max, step: c.steps ? 1 : c.step}));
@@ -779,19 +880,19 @@ function syncControls() {
 
 // ------------------------------------------------------------------ compute
 const NICE = {
-  sma200: r => "Price below SMA200" + (r.pct_vs_sma200 !== null ? " by " + Math.abs(r.pct_vs_sma200).toFixed(1) + "%" : ""),
-  sma50: r => "Price below SMA50" + (r.pct_vs_sma50 !== null ? " by " + Math.abs(r.pct_vs_sma50).toFixed(1) + "%" : ""),
-  cross: () => "SMA50 below SMA200",
-  roc9: (r, s) => "ROC(9) " + spct(r.roc9) + " (needs " + s.roc9_min + "%)",
+  sma200: r => "Price below 200-day average" + (r.pct_vs_sma200 !== null ? " by " + Math.abs(r.pct_vs_sma200).toFixed(1) + "%" : ""),
+  sma50: r => "Price below 50-day average" + (r.pct_vs_sma50 !== null ? " by " + Math.abs(r.pct_vs_sma50).toFixed(1) + "%" : ""),
+  cross: () => "50-day average below 200-day",
+  roc9: (r, s) => "9-day change " + spct(r.roc9) + " (needs " + s.roc9_min + "%)",
   price: (r, s) => "Price " + price(r.close) + " (needs above ₱" + s.price_min + ")",
-  avg: (r, s) => "30-day avg value " + money(r.avg_value_30d) + " (needs above " + money(s.avg_value_min) + ")",
-  mcap: (r, s) => r.mcap === null ? "Market cap unavailable" : "Market cap " + money(r.mcap) + " (needs " + money(s.mcap_min) + ")",
-  vt: (r, s) => "Today's value " + money(r.value_today) + " (needs above " + money(s.value_today_min) + ")",
-  high: (r, s) => pct(r.pct_high_above_close) + " below 52-week high (allowed " + s.high_band[0] + "–" + s.high_band[1] + "%)",
-  atr: (r, s) => "ATR% " + pct(r.atr_pct14, 2) + " (allowed " + s.atr_band[0] + "–" + s.atr_band[1] + "%)",
+  avg: (r, s) => "Usual daily trading " + money(r.avg_value_30d) + " (needs above " + money(s.avg_value_min) + ")",
+  mcap: (r, s) => r.mcap === null ? "Company size unavailable" : "Company size " + money(r.mcap) + " (needs " + money(s.mcap_min) + ")",
+  vt: (r, s) => "Traded today " + money(r.value_today) + " (needs above " + money(s.value_today_min) + ")",
+  high: (r, s) => pct(r.pct_high_above_close) + " below year high (allowed " + s.high_band[0] + "–" + s.high_band[1] + "%)",
+  atr: (r, s) => "Daily swing " + pct(r.atr_pct14, 2) + " (allowed " + s.atr_band[0] + "–" + s.atr_band[1] + "%)",
 };
-const RULE_NAME = {sma200: "SMA200", sma50: "SMA50", cross: "SMA50 vs SMA200", roc9: "ROC(9)", price: "price", avg: "30-day value",
-  mcap: "market cap", vt: "today's value", high: "52-week high", atr: "ATR%"};
+const RULE_NAME = {sma200: "200-day average", sma50: "50-day average", cross: "50-day vs 200-day average", roc9: "9-day change", price: "price",
+  avg: "usual daily trading", mcap: "company size", vt: "traded today", high: "year high", atr: "daily swing"};
 function nice(f, r, s, date) {
   if (f.rule === "stale") return "No trade on " + dateLabel(date);
   if (f.rule === "fetch") return "Not scanned: " + r.fetch_error;
@@ -839,28 +940,29 @@ const daysOf = r => { const i = H.state === "ok" && PRESETS[S.preset] && (tracks
 
 // ------------------------------------------------------------------ render
 const COLS = [
-  {k: "symbol", t: "Symbol", hl: 1},
-  {k: "days", t: "Days in", hl: 1, v: daysOf, f: r => daysText(H, S.preset, daysOf(r))},
-  {k: "cci20", t: "CCI(20)", hl: 1, f: r => r.cci20 === null ? "—" : r.cci20.toFixed(1)},
+  {k: "symbol", t: "Stock", hl: 1},
+  {k: "days", t: "Days on list", hl: 1, v: daysOf, f: r => daysText(H, S.preset, daysOf(r))},
+  {k: "cci20", t: "Momentum", hl: 1, f: r => r.cci20 === null ? "—" : r.cci20.toFixed(1)},
   {k: "close", t: "Price ₱", hl: 1, f: r => price(r.close)},
-  {k: "value_today", t: "Price × vol", hl: 1, x: 1, f: r => money(r.value_today)},
-  {k: "chg_pct", t: "Chg %", hl: 1, f: r => spct(r.chg_pct, 2), c: 1},
-  {k: "atr_pct14", t: "ATR% (14)", x: 1, f: r => pct(r.atr_pct14, 2)},
-  {k: "roc9", t: "ROC(9)", x: 1, f: r => spct(r.roc9), c: 1},
-  {k: "pct_high_above_close", t: "Below 52W high", x: 1, f: r => pct(r.pct_high_above_close)},
-  {k: "pct_vs_sma50", t: "vs SMA50", x: 1, f: r => spct(r.pct_vs_sma50), c: 1},
-  {k: "pct_vs_sma200", t: "vs SMA200", x: 1, f: r => spct(r.pct_vs_sma200), c: 1},
-  {k: "mcap", t: "Mkt cap", x: 1, f: r => money(r.mcap)},
-  {k: "avg_value_30d", t: "30D avg value", x: 1, f: r => money(r.avg_value_30d)},
+  {k: "value_today", t: "Traded today", hl: 1, x: 1, f: r => money(r.value_today)},
+  {k: "chg_pct", t: "Today %", hl: 1, f: r => spct(r.chg_pct, 2), c: 1},
+  {k: "atr_pct14", t: "Daily swing", x: 1, f: r => pct(r.atr_pct14, 2)},
+  {k: "roc9", t: "9-day change", x: 1, f: r => spct(r.roc9), c: 1},
+  {k: "pct_high_above_close", t: "Below year high", x: 1, f: r => pct(r.pct_high_above_close)},
+  {k: "pct_vs_sma50", t: "vs 50-day avg", x: 1, f: r => spct(r.pct_vs_sma50), c: 1},
+  {k: "pct_vs_sma200", t: "vs 200-day avg", x: 1, f: r => spct(r.pct_vs_sma200), c: 1},
+  {k: "mcap", t: "Company size", x: 1, f: r => money(r.mcap)},
+  {k: "avg_value_30d", t: "Usual daily trading", x: 1, f: r => money(r.avg_value_30d)},
 ];
 function renderHead() {
-  const tr = $("thr"); tr.textContent = "";
+  const tr = $("thr"); if (tipOn && tr.contains(tipOn)) tipClose();
+  tr.textContent = "";
   for (const c of COLS) {
     const on = S.sort.k === c.k;
     const th = el("th", {cls: (c.hl ? "hl " : "") + (c.x ? "x" : ""), "aria-sort": on ? (S.sort.dir < 0 ? "descending" : "ascending") : "none"},
-      el("button", {type: "button", text: c.t + (on ? (S.sort.dir < 0 ? " ▼" : " ▲") : ""), onclick: () => {
+      el("div", {cls: "th"}, el("button", {type: "button", text: c.t + (on ? (S.sort.dir < 0 ? " ▼" : " ▲") : ""), onclick: () => {
         S.sort = on ? {k: c.k, dir: -S.sort.dir} : {k: c.k, dir: c.k === "symbol" ? 1 : -1}; render();
-      }}));
+      }}), tipBtn(c.t))); // the ? is the sort button's sibling, never inside it
     tr.append(th);
   }
 }
@@ -911,7 +1013,7 @@ function render() {
   }
   tb.textContent = ""; tb.append(frag);
   const note = [q && rs.length ? rs.length + " match" + (rs.length === 1 ? "" : "es") + " among every scanned stock · clear the search to see the table again" : "",
-    S.preset === "custom" ? "Days in: history covers Strict and Loose only." : ""].filter(Boolean).join(" ");
+    S.preset === "custom" ? "Days on list: history covers Strict and Loose only." : ""].filter(Boolean).join(" ");
   $("tnote").hidden = !note; $("tnote").textContent = note;
   const empty = $("tblempty");
   empty.hidden = rs.length > 0;
@@ -922,9 +1024,11 @@ function render() {
   const since = C.hasCmp ? " since " + dateLabel(S.cmpDate) : "";
   const chips = $("chips"); chips.textContent = "";
   for (const [v, n, t] of [["pass", C.pass.length, "pass"], ["new", C.hasCmp ? C.isNew.size : "—", "new" + since],
-    ["dropped", C.hasCmp ? C.dropped.length : "—", "dropped" + since], ["missed", C.missed.length, "missed by 1 filter"]])
+    ["dropped", C.hasCmp ? C.dropped.length : "—", "dropped" + since], ["missed", C.missed.length, "missed by one filter"]])
     chips.append(el("button", {type: "button", "aria-pressed": String(S.view === v), disabled: n === "—" ? "" : null,
       onclick: () => { S.view = S.view === v && v !== "pass" ? "pass" : v; render(); }}, el("b", {text: n}), t));
+  chips.append(tipBtn("missed by one filter"));
+  renderSummary();
 
   const lst = (id, items, emptyText, why, keep, cls = "why") => {
     const t = $(id); if (!keep) t.textContent = "";
@@ -957,13 +1061,25 @@ function renderEmpty() {
   for (const id of ["missed", "dropped", "ns"]) $(id).textContent = "";
   $("tblempty").hidden = false;
   $("tblempty").textContent = S.msg || (S.key ? "Loading results…" : "Paste your key above to see your results.");
+  renderSummary();
+}
+function renderSummary() {
+  const box = $("sum"), part = x => typeof x === "string" ? x : el("b", {text: x.b, cls: x.n ? "n" : null});
+  box.classList.toggle("res", !S.rows); box.hidden = !S.rows && !S.loading; // keeps the space while a first load runs
+  $("sum1").textContent = $("sum2").textContent = "";
+  if (!S.rows || !C) return;
+  const cmp = C.hasCmp ? dateLabel(S.cmpDate) : null;
+  $("sum1").append(...summaryLine(C, {name: activeName(), date: S.date, provisional: !!(S.meta && S.meta.final === false), status: S.status,
+    holidays: S.holidays, missed: S.missed, now: new Date(), cmp}).map(part));
+  $("sum2").append(...moodLine(mood(S.rows, S.cmpRows), cmp).map(part), tipBtn("Market mood"));
 }
 function renderHeader() {
-  const h = $("hdr"); h.textContent = "";
+  const h = $("hdr"); if (tipOn && h.contains(tipOn)) tipClose();
+  h.textContent = "";
   if (!S.rows) { h.textContent = !S.key ? "No data loaded" : S.msg ? "No data yet" : "Loading…"; return; } // S.msg means loading has finished with nothing to show
   const m = S.meta;
   h.append("Data as of ", el("b", {text: dateLabel(S.date, true)}), " close");
-  if (m && m.final === false) h.append(el("span", {cls: "badge warn", text: "Provisional (intraday)"}));
+  if (m && m.final === false) h.append(el("span", {cls: "badge warn", text: "Provisional"}), tipBtn("Provisional"));
   const bits = [];
   if (m && m.finished_at) bits.push("fetched " + timeLabel(m.finished_at));
   const scanned = m ? m.scanned : S.rows.length, failed = m ? m.fetch_failed : S.rows.filter(r => r.fetch_error).length;
@@ -1003,6 +1119,7 @@ function renderCompare() {
   const sel = $("cmp"); sel.textContent = "";
   sel.append(el("option", {value: "", text: "Compare with…"}));
   for (const e of S.index) if (cmpOk(e.date)) sel.append(el("option", {value: e.date, text: dateLabel(e.date, true) + (e.final ? "" : " (provisional)")}));
+  if (S.cmpRows && ![...sel.options].some(o => o.value === S.cmpDate)) sel.append(el("option", {value: S.cmpDate, text: dateLabel(S.cmpDate, true)})); // the menu names the comparison in use
   sel.value = S.cmpRows ? S.cmpDate : "";
   sel.hidden = !S.rows; // nothing to compare before results load
 }
@@ -1026,8 +1143,8 @@ async function gh(path, opts = {}) {
   return r;
 }
 // A file read gives up after 30 s, so a hung request can't hold "updating…" (Run now's calls keep no limit)
-const fileText = async (path) => {
-  const c = new AbortController(), t = setTimeout(() => c.abort(new Error(path + ": no answer in 30 seconds")), 30e3);
+const fileText = async (path, secs = 30) => {
+  const c = new AbortController(), t = setTimeout(() => c.abort(new Error(path + ": no answer in " + secs + " seconds")), secs * 1e3);
   try { const r = await gh("/contents/" + path, {signal: c.signal}); if (r.status === 404) return null; if (!r.ok) throw new Error(path + ": HTTP " + r.status); return await r.text(); }
   catch (e) { throw c.signal.aborted && c.signal.reason instanceof Error ? c.signal.reason : e; }
   finally { clearTimeout(t); }
@@ -1063,7 +1180,7 @@ const saveCache = c => store.set("cache", {...c, history: S.htext}) || store.set
 let hgen = 0; // like gen, for history
 async function loadHist() {
   const my = ++hgen;
-  const x = await fileText("results/history.csv").catch(e => e);
+  const x = await fileText("results/history.csv", 90).catch(e => e); // it grows every session: more time on a slow phone
   if (my !== hgen) return;
   if (x instanceof Error && H.state === "ok") { S.herr = x.message || "no access"; renderAll(); return; }
   S.herr = null; setHistory(x);
@@ -1074,7 +1191,7 @@ async function loadRemote() {
   if (!S.key) return;
   loadHist(); // in parallel: the table doesn't wait for it
   const my = ++gen;
-  S.loading = my; renderHeader(); // "updating…"; S.loading is cleared only by the newest load
+  S.loading = my; if (!S.rows) S.msg = null; renderHeader(); if (!S.rows) renderSummary(); // "updating…"; S.loading is cleared only by the newest load
   const stale = () => my !== gen;
   try {
     const [csv, idx, st, hol] = await Promise.all(["latest.csv", "index.json", "status.json"].map(f => fileText("results/" + f)).concat(fileText("data/holidays.csv")));
@@ -1088,7 +1205,8 @@ async function loadRemote() {
     setCurrent(csv);
     S.updated = Date.now(); S.cached = false; S.msg = null;
     const cd = cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
-    const ccsv = cd ? await fileText("results/" + cd + ".csv") : null;
+    // A compare file that fails or times out never fails the main load (only a refused key does)
+    const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { if (e instanceof AuthError) throw e; return null; }) : null;
     if (my !== gen) return;
     setCompare(ccsv, cd);
     saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
@@ -1100,7 +1218,7 @@ async function loadRemote() {
     else S.msg = "Couldn't reach GitHub (" + e.message + "). Check your connection and reload.";
     S.cached = false;
   } finally {
-    if (my === gen) { S.loading = 0; S.tried = Date.now(); renderAll(); }
+    if (my === gen) { S.loading = 0; S.tried = Date.now(); S.cached = false; renderAll(); }
   }
 }
 const refresh = () => { if (!S.loading) loadRemote(); }; // Refresh in the ⋯ menu: a second press while loading does nothing
@@ -1206,7 +1324,7 @@ function renderPanel() {
   add(el("div", {cls: "status"}, !row ? "Not in today's scan" + (seen ? ", last seen " + dateLabel(seen) : "")
     : !ok ? "Not scanned today (" + row.fetch_error + ")"
     : on("strict") ? (on("loose") ? "On Strict and Loose" : "On Strict") : on("loose") ? "On Loose" : "On neither",
-  row && row.pass_strict && row.pass_loose ? el("span", {cls: "badge both", text: "BOTH"}) : null, el("span", {cls: "small muted", text: " · " + dateLabel(S.date)})));
+  ...(row && row.pass_strict && row.pass_loose ? [el("span", {cls: "badge both", text: "BOTH"}), tipBtn("BOTH")] : []), el("span", {cls: "small muted", text: " · " + dateLabel(S.date)})));
   if (ok && !(on("strict") && on("loose"))) {
     add(el("h3", {text: "Fails today"}));
     for (const p in PRESETS) if (!on(p)) add(el("b", {cls: "small", text: NAME[p]}),
@@ -1218,7 +1336,7 @@ function renderPanel() {
   else {
     const i = tracks().m.get(sym) || info(sym, row || null), g = el("div", {cls: "grid"}, el("div"), el("div", {cls: "h", text: "Strict"}), el("div", {cls: "h", text: "Loose"}));
     const line = (t, f) => g.append(el("div", {text: t}), ...["strict", "loose"].map(p => el("div", null, f(i[p]))));
-    line("Days in", k => el("b", {text: k.days}));
+    line("Days on list", k => el("b", {text: k.days}));
     line("Last 20 sessions", k => k.last20 + " of 20");
     line("Joined this time", k => !k.join ? "—" : k.days ? md(k.join) : "Last in " + md(k.join));
     line("Since it joined this time", k => k.chg === null ? "—" : el("span", {cls: k.chg > 0 ? "up" : k.chg < 0 ? "down" : null, text: spct(k.chg * 100)}));
@@ -1289,7 +1407,7 @@ function strip(t) {
   return [box, day];
 }
 
-// ------------------------------------------------------------------ key panel and the phone panel
+// ------------------------------------------------------------------ key panel, phone panels and the ? bubbles
 const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 // mode: false (closed), "key" (a new key or a renewal: the four steps) or "date" (Add date: the date only)
 function showKey(mode) {
@@ -1313,6 +1431,38 @@ function showHome(open) {
   if (ios || !android) ol.append(el("li", null, ios ? "" : "iPhone: ", "Tap ", b("Share"), " at the bottom of Safari."), el("li", null, "Tap ", b("Add to Home Screen"), ", then ", b("Add"), "."));
   if (android || !ios) ol.append(el("li", null, ios || android ? "" : "Android: ", "Tap ", b("⋮"), " in Chrome, then ", b("Add to home screen"), " (or ", b("Install app"), ")."));
   $("homep").scrollIntoView({block: "nearest"}); $("homex").focus();
+}
+
+function showWords(open) {
+  $("words").hidden = !open;
+  if (!open) return;
+  const dl = $("wordsl"); dl.textContent = "";
+  for (const k in TIPS) dl.append(el("dt", {text: k[0].toUpperCase() + k.slice(1)}), el("dd", {text: TIPS[k]}));
+  $("words").scrollIntoView({block: "start"}); $("wordsx").focus();
+}
+let tipOn = null, tipPinned = false;
+// A ? button for a TIPS label: hover (where hover exists) or focus shows the bubble, a tap or click pins it
+function tipBtn(label, b = el("button")) {
+  b.type = "button"; b.className = "q"; b.textContent = "?"; b.setAttribute("aria-label", "What is " + label + "?"); b.setAttribute("aria-expanded", "false");
+  b.addEventListener("click", e => {
+    e.stopPropagation();
+    if (tipOn === b && tipPinned) tipClose(); else { tipOpen(b, label, true); $("tipsr").textContent = label + ": " + TIPS[label]; }
+  });
+  if (matchMedia("(hover: hover)").matches) { b.addEventListener("mouseenter", () => tipPinned || tipOpen(b, label)); b.addEventListener("mouseleave", () => tipPinned || tipClose()); }
+  b.addEventListener("focus", () => tipPinned || tipOpen(b, label));
+  b.addEventListener("blur", () => tipPinned || tipClose());
+  return b;
+}
+function tipOpen(b, label, pin) {
+  if (tipOn && tipOn !== b) tipClose();
+  const t = $("tip"); t.textContent = ""; t.append(el("b", {text: label[0].toUpperCase() + label.slice(1)}), TIPS[label] || "");
+  t.hidden = false; tipOn = b; tipPinned = !!pin; b.setAttribute("aria-expanded", "true"); b.setAttribute("aria-describedby", "tip");
+  const r = b.getBoundingClientRect(), w = t.offsetWidth, vw = document.documentElement.clientWidth; // kept on screen, outside any scroll box
+  t.style.top = r.bottom + scrollY + 8 + "px"; t.style.left = Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2)) + scrollX + "px";
+}
+function tipClose() {
+  if (!tipOn) return;
+  tipOn.setAttribute("aria-expanded", "false"); tipOn.removeAttribute("aria-describedby"); tipOn = null; tipPinned = false; $("tip").hidden = true;
 }
 
 // ------------------------------------------------------------------ wire up
@@ -1341,6 +1491,12 @@ function init() {
   $("keyforget").addEventListener("click", forgetKey);
   $("keyx").addEventListener("click", () => showKey(false));
   $("homex").addEventListener("click", () => showHome(false));
+  $("wordsgo").addEventListener("click", e => { e.preventDefault(); showWords(true); });
+  $("wordsx").addEventListener("click", () => showWords(false));
+  for (const b of document.querySelectorAll("[data-tip]")) tipBtn(b.dataset.tip, b);
+  document.addEventListener("click", e => { if (tipOn && !$("tip").contains(e.target)) tipClose(); });
+  let sy = scrollY; // a vertical page scroll closes the bubble; scrolling inside a box does not
+  addEventListener("scroll", () => { if (tipOn && Math.abs(scrollY - sy) > 2) tipClose(); sy = scrollY; }, {passive: true});
   $("homeitem").hidden = standalone();
   const GO = {keybtn: () => showKey($("keyp").hidden && "key"), homego: () => showHome(true), refresh};
   const more = $("more"), menu = $("menu"), items = [...menu.children].filter(b => !b.hidden);
@@ -1366,7 +1522,7 @@ function init() {
   window.addEventListener("popstate", () => { const s = new URLSearchParams(location.search).get("s"); if (!s) closePanel(true); else if (!P) openPanel(s, null, false); });
   document.addEventListener("keydown", e => {
     if (P) { if (e.key === "Escape") { e.preventDefault(); closePanel(); } return; }
-    if (e.key === "Escape" && !$("homep").hidden) showHome(false);
+    if (e.key === "Escape") { if (tipOn) { const b = tipOn; tipClose(); b.focus(); } else if (!$("words").hidden) showWords(false); else if (!$("homep").hidden) showHome(false); }
     if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
     if (e.key === "/") { e.preventDefault(); $("q").focus(); }
     else if (e.key === "r" && confirm("Run the screener now?")) runNow();
