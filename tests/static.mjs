@@ -90,7 +90,7 @@ function png(path, b, fail) {
 
 function page(html, fail, lineOf) {
   const P = "index.html", size = Buffer.byteLength(html);
-  if (size >= 128 * 1024) fail("SIZE", P, 1, "index.html is " + size + " bytes (limit 128 KB; plan budget for T-21: 88,000)");
+  if (size >= 128 * 1024) fail("SIZE", P, 1, "index.html is " + size + " bytes (limit 128 KB)");
   const csps = [...html.matchAll(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/gi)];
   if (csps.length !== 1 || csps[0][1] !== CSP) fail("CSP", P, csps.length ? lineOf(html, csps[0].index) : 1, "CSP meta tag missing, duplicated or changed");
   else if (csps[0].index > html.indexOf("<script")) fail("CSP", P, lineOf(html, csps[0].index), "CSP meta tag must come before the first script");
