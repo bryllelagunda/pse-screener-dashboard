@@ -79,6 +79,16 @@ eq(bandText("refused", 11, "Tue, Dec 1", false),
   "GitHub didn't accept this key. If you made a new key on another device, paste it here; if not, make a new one.", "refused, browser");
 eq(bandText("nodate", null, ""), "Add your key's end date so this page can remind you before it runs out.", "no-date words");
 
+// What Later stores: the band, and 30 Manila days only for the no-date bar (store and renderBars stand in for the page's)
+{
+  const saved = {}, keyLater = new Function("store", "renderBars", "Date",
+    block("/* STATUS-START", "/* STATUS-END */") + block("/* KEY-START", "/* KEY-END */") + "; return keyLater;")(
+    {set: (k, v) => { saved[k] = v; }}, () => {}, class extends Date { constructor(...a) { super(...(a.length ? a : ["2026-11-20T16:30:00Z"])); } });
+  keyLater("nodate"); eq(saved.keyNag, {band: "nodate", until: "2026-12-21"}, "Later on no date: until 30 days after the Manila date (Nov 21 in Manila)");
+  keyLater("14"); eq(saved.keyNag, {band: "14", until: null}, "Later on 14 days: no end date");
+  keyLater("3"); eq(saved.keyNag, {band: "3", until: null}, "Later on 3 days: no end date");
+}
+
 // Which GitHub answers count as a refused key (gh() throws AuthError on "auth"); a 404 never does
 const h = o => ({get: k => o[k] ?? null});
 eq([authKind(401, h({})), authKind(403, h({})), authKind(403, h({"x-ratelimit-remaining": "0"})), authKind(403, h({"retry-after": "60"})),
