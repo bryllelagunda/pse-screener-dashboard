@@ -1002,6 +1002,7 @@ function renderCompare() {
   sel.append(el("option", {value: "", text: "Compare with…"}));
   for (const e of S.index) if (cmpOk(e.date)) sel.append(el("option", {value: e.date, text: dateLabel(e.date, true) + (e.final ? "" : " (provisional)")}));
   sel.value = S.cmpRows ? S.cmpDate : "";
+  sel.hidden = !S.rows; // nothing to compare before results load
 }
 function update() { syncControls(); settingsToURL(); compute(); render(); }
 function renderAll() {
