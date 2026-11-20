@@ -1210,10 +1210,12 @@ async function loadRemote() {
     S.updated = Date.now(); S.cached = false; S.msg = null;
     const cd = cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
     // A compare file that fails or times out never fails the main load (only a refused key does)
-    const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { if (e instanceof AuthError) throw e; return null; }) : null;
+    let cfail = false; // a failed compare file keeps the comparison already shown (and saved), never erases it
+    const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { if (e instanceof AuthError) throw e; cfail = true; return null; }) : null;
     if (my !== gen) return;
-    setCompare(ccsv, cd);
-    saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
+    const kept = cfail && S.cmpRows ? (store.get("cache", null) || {}).cmp || null : null;
+    if (!cfail || !S.cmpRows) setCompare(ccsv, cd);
+    saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : kept, at: S.updated});
     checkFixture(my);
   } catch (e) {
     if (my !== gen) return;
@@ -1438,13 +1440,14 @@ function showHome(open) {
 }
 
 function showWords(open) {
+  if (!open && $("words").contains(document.activeElement)) $("wordsgo").focus();
   $("words").hidden = !open;
   if (!open) return;
   const dl = $("wordsl"); dl.textContent = "";
   for (const k in TIPS) dl.append(el("dt", {text: k[0].toUpperCase() + k.slice(1)}), el("dd", {text: TIPS[k]}));
   $("words").scrollIntoView({block: "start"}); $("wordsx").focus();
 }
-let tipOn = null, tipPinned = false;
+let tipOn = null, tipPinned = false, tipAt = 0;
 // A ? button for a TIPS label: hover (where hover exists) or focus shows the bubble, a tap or click pins it
 function tipBtn(label, b = el("button")) {
   b.type = "button"; b.className = "q"; b.textContent = "?"; b.setAttribute("aria-label", "What is " + label + "?"); b.setAttribute("aria-expanded", "false");
@@ -1460,7 +1463,8 @@ function tipBtn(label, b = el("button")) {
 function tipOpen(b, label, pin) {
   if (tipOn && tipOn !== b) tipClose();
   const t = $("tip"); t.textContent = ""; t.append(el("b", {text: label[0].toUpperCase() + label.slice(1)}), TIPS[label] || "");
-  t.hidden = false; tipOn = b; tipPinned = !!pin; b.setAttribute("aria-expanded", "true"); b.setAttribute("aria-describedby", "tip");
+  // tipAt: a scroll that focusing the ? itself caused doesn't close the bubble
+  t.hidden = false; tipOn = b; tipPinned = !!pin; tipAt = Date.now(); b.setAttribute("aria-expanded", "true"); b.setAttribute("aria-describedby", "tip");
   const r = b.getBoundingClientRect(), w = t.offsetWidth, vw = document.documentElement.clientWidth; // kept on screen, outside any scroll box
   t.style.top = r.bottom + scrollY + 8 + "px"; t.style.left = Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2)) + scrollX + "px";
 }
@@ -1501,7 +1505,7 @@ function init() {
   for (const b of document.querySelectorAll("[data-tip]")) tipBtn(b.dataset.tip, b);
   document.addEventListener("click", e => { if (tipOn && !$("tip").contains(e.target)) tipClose(); });
   let sy = scrollY; // a vertical page scroll closes the bubble; scrolling inside a box does not
-  addEventListener("scroll", () => { if (tipOn && Math.abs(scrollY - sy) > 2) tipClose(); sy = scrollY; }, {passive: true});
+  addEventListener("scroll", () => { if (tipOn && Math.abs(scrollY - sy) > 2 && Date.now() - tipAt > 300) tipClose(); sy = scrollY; }, {passive: true});
   $("homeitem").hidden = standalone();
   const GO = {keybtn: () => showKey($("keyp").hidden && "key"), homego: () => showHome(true), refresh};
   const more = $("more"), menu = $("menu"), items = [...menu.children].filter(b => !b.hidden);
