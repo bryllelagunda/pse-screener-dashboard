@@ -1057,7 +1057,7 @@ function render() {
     e => e.gone ? "Not in today's scan" : [...new Set(e.f.map(f => nice(f, e.r, S.set, S.date)))].join("; "));
   $("nsh").textContent = "Not scanned today (" + C.notScanned.length + ")";
   lst("ns", C.notScanned, "Every stock was scanned.");
-  renderPanel();
+  renderPanel(); tipGone();
 }
 function renderEmpty() {
   $("thr").textContent = ""; $("tb").textContent = ""; $("chips").textContent = ""; $("tnote").hidden = $("knp").hidden = true;
@@ -1075,6 +1075,7 @@ function renderSummary() {
   $("sum1").append(...summaryLine(C, {name: activeName(), date: S.date, provisional: !!(S.meta && S.meta.final === false), status: S.status,
     holidays: S.holidays, missed: S.missed, now: new Date(), cmp}).map(part));
   $("sum2").append(...moodLine(mood(S.rows, S.cmpRows), cmp).map(part), tipBtn("Market mood"));
+  tipGone();
 }
 function renderHeader() {
   const h = $("hdr"); if (tipOn && h.contains(tipOn)) tipClose();
@@ -1309,7 +1310,7 @@ function openPanel(sym, from, push = true) {
 }
 function closePanel(fromBack) {
   if (!P) return;
-  const {sym, from, pushed} = P; P = null;
+  const {sym, from, pushed} = P; P = null; tipClose();
   $("sp").hidden = $("scrim").hidden = true; document.body.classList.remove("lock");
   if (!fromBack) { if (pushed) history.back(); else history.replaceState(null, "", pageURL()); }
   const back = from && from.isConnected ? from : [...document.querySelectorAll("[data-sym]")].find(e => e.dataset.sym === sym);
@@ -1463,6 +1464,7 @@ function tipOpen(b, label, pin) {
   const r = b.getBoundingClientRect(), w = t.offsetWidth, vw = document.documentElement.clientWidth; // kept on screen, outside any scroll box
   t.style.top = r.bottom + scrollY + 8 + "px"; t.style.left = Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2)) + scrollX + "px";
 }
+const tipGone = () => { if (tipOn && !tipOn.isConnected) tipClose(); }; // its ? was redrawn: no bubble left floating
 function tipClose() {
   if (!tipOn) return;
   tipOn.setAttribute("aria-expanded", "false"); tipOn.removeAttribute("aria-describedby"); tipOn = null; tipPinned = false; $("tip").hidden = true;
@@ -1525,7 +1527,7 @@ function init() {
   window.addEventListener("popstate", () => { const s = new URLSearchParams(location.search).get("s"); if (!s) closePanel(true); else if (!P) openPanel(s, null, false); });
   document.addEventListener("keydown", e => {
     if (P) { if (e.key === "Escape") { e.preventDefault(); closePanel(); } return; }
-    if (e.key === "Escape") { if (tipOn) { const b = tipOn; tipClose(); b.focus(); } else if (!$("words").hidden) showWords(false); else if (!$("homep").hidden) showHome(false); }
+    if (e.key === "Escape") { if (tipOn) { const b = tipOn; b.focus(); tipClose(); } else if (!$("words").hidden) showWords(false); else if (!$("homep").hidden) showHome(false); }
     if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
     if (e.key === "/") { e.preventDefault(); $("q").focus(); }
     else if (e.key === "r" && confirm("Run the screener now?")) runNow();
