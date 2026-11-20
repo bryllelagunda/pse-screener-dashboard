@@ -19,6 +19,21 @@ text or a line that starts like a stock row inside an allowed one, or a changed 
 2. Open the page, paste the token, check the date it runs out (filled in as today + 90 days), press
    **Save key**. **Key → Forget key** removes the key, its date and the saved results.
 
+## The daily summary and plain words
+
+Under any red bars, two lines sum up the selected set for the shown session: how many stocks pass, what is
+new or dropped since the compare date, and how many missed by one filter (prefixed when the data is
+provisional, from a session before a holiday, or not today's). The second line is the **market mood**: the
+share of the whole scan above its 200-day average (weak under 35%, mixed to 65%, strong above), with the
+change since the compare date; under 50 stocks with that number it says there is not enough data. It
+describes the market; it is not a signal to buy or sell. The view chips and search sit under the summary,
+above the filters.
+
+Labels use plain words (Momentum, Daily swing, Company size, …). A **?** next to a label explains it
+(desktop: filters, columns, chips, section titles and badges; phone: the same without the columns; the set
+row has one, after Strict). **What the words mean** in the footer lists every explanation at once, Loose
+and Custom included; the texts live in one `TIPS` object in `index.html`.
+
 ## Key reminders
 
 The page keeps the key's end date (`pse.keyExp`) on this device only; it never goes into a request, the
@@ -40,7 +55,7 @@ home-screen app) and **Refresh** sit in the **⋯** menu. Coming back to the pag
 The page also reads the private `results/history.csv` (written by the screener's runs), after the table
 is on screen, and keeps it in the same `localStorage` cache as `latest.csv`. It adds:
 
-- **Days in** (sortable, right after Symbol): sessions in a row on the selected preset, today included.
+- **Days on list** (sortable, right after Stock): sessions in a row on the selected preset, today included.
   `…` while history loads, `—` when there is none yet, it can't be read, or the view is Custom
   (history covers Strict and Loose only). A **BOTH** badge marks stocks on Strict and Loose today.
 - **Knocking on the door:** stocks that missed a preset by one rule 3+ sessions running (data gaps
@@ -94,9 +109,9 @@ node tests/static.mjs                                  # size, exact CSP, file a
 node tests/guards.mjs                                  # refusal tests: each guard in static.mjs refuses its crafted input (CI)
 node tests/screens.mjs                                 # saved sets: storage cleaning, name rules, panel summary (CI)
 node tests/status.mjs                                  # status bar: missed-run rule (CI)
-node tests/history.mjs                                 # history file checks, Days in, streaks, Knocking, disagreement (CI)
+node tests/history.mjs                                 # history file checks, Days on list, streaks, Knocking, disagreement (CI)
 node tests/key.mjs                                     # key end date, reminder bars, Later, refused vs rate limit (CI)
-node tests/summary.mjs                                 # when the page reloads on its own (CI)
+node tests/summary.mjs                                 # the summary and mood words, the ? texts, the 10-minute reload (CI)
 node tests/demo.mjs check                              # the made-up data sets parse and agree with the page's filter (CI)
 node tests/parity.mjs ../pse-screener ../pse-screener/results/latest.csv
 ```

@@ -48,7 +48,8 @@ export function pageCode(html = read("/").toString()) {
   const block = (a, b) => { const i = html.indexOf(a), j = html.indexOf(b); if (i < 0 || j < 0) throw new Error("demo.mjs: " + a + " markers not found"); return html.slice(i, j); };
   const names = ["filter", "history", "status", "summary", "key"].map(n => n.toUpperCase());
   const src = names.map(n => block("/* " + n + "-START", "/* " + n + "-END */")).join("\n");
-  return new Function(src + "; return {evaluate, parseCSV, dayRows, parseHistory, HHEAD, PRESETS, missedRun, manilaISO, addDays, isDay, keyBand, shouldRefresh};")();
+  const names2 = "evaluate, parseCSV, dayRows, parseHistory, HHEAD, PRESETS, missedRun, manilaISO, addDays, isDay, keyBand, shouldRefresh, mood";
+  return new Function(src + "; return {" + names2 + "};")();
 }
 
 // ---------------------------------------------------------------- made-up data
@@ -263,6 +264,8 @@ function check(o) {
         if (day === "normal" && P.missedRun(st, index, d.holidays, at)) bad(`date=${t} ${h}:00 shows a missed-run bar`);
       }
       if (day === "normal" && P.keyBand(P.addDays(d.today, 60), null, false, now).band !== null) bad("the default key (60 days) shows a key bar");
+      const m = P.mood(rows, null);
+      if (!m || !["weak", "mixed", "strong"].includes(m.word)) bad(`date=${t} market mood: not enough numbers in the made-up rows`);
     }
     if (good) ok++;
   }
