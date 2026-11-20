@@ -168,6 +168,14 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
  </div>
 </div></header>
 <main class="wrap">
+ <section id="homep" class="panel" hidden>
+  <div class="row ph2"><h2 style="margin:0">Add to home screen</h2><button id="homex" type="button">Close</button></div>
+  <ol class="steps small" id="homesteps"></ol>
+  <p class="small muted" style="margin:8px 0 0">On iPhone the home-screen app keeps its own key. If you still have your key, paste it once inside the app. If not, open the app, press <b>How to renew</b> and make a new key there; then use only the app, and paste the new key on any other device.</p>
+ </section>
+ <div id="bars"></div>
+ <div id="keylive" class="sr" role="status"></div>
+ <div id="calm"></div>
  <section id="keyp" class="panel" hidden>
   <h2 id="keyh">Connect your private results</h2>
   <p class="small muted" id="keyt">This page reads your screener's results from your private GitHub repository with a key that stays in this browser.</p>
@@ -187,14 +195,6 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
    <button id="keyx" type="button">Cancel</button>
   </div>
  </section>
- <section id="homep" class="panel" hidden>
-  <div class="row ph2"><h2 style="margin:0">Add to home screen</h2><button id="homex" type="button">Close</button></div>
-  <ol class="steps small" id="homesteps"></ol>
-  <p class="small muted" style="margin:8px 0 0">On iPhone the home-screen app keeps its own key. If you still have your key, paste it once inside the app. If not, open the app, press <b>How to renew</b> and make a new key there; then use only the app, and paste the new key on any other device.</p>
- </section>
- <div id="bars"></div>
- <div id="keylive" class="sr" role="status"></div>
- <div id="calm"></div>
  <section class="panel" id="controls">
   <div class="row" role="group" aria-label="Filter set" id="sets">
    <button type="button" data-p="strict">Strict</button>
