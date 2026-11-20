@@ -80,7 +80,7 @@ tr.dim td{color:var(--muted)}
 .list td.go{width:24px;color:var(--muted);text-align:right}
 .list td.sub{font-size:12px;color:var(--muted);height:auto;padding-top:10px}
 .menuw{position:relative}
-#menu{position:absolute;right:0;top:48px;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:170px}
+#menu{position:absolute;right:0;top:48px;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:200px}
 #menu button{display:block;width:100%;text-align:left;border:0;background:none}#menu button:hover{background:#262b35}
 #scrim{position:fixed;inset:0;z-index:20;background:rgba(10,12,16,.55)}
 #sp{position:fixed;top:0;right:0;bottom:0;z-index:21;width:420px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:0 16px 24px}
@@ -132,8 +132,9 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 #kdate{max-width:220px;min-height:44px;padding:0 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
 .bar a{margin-left:6px}
 .ph2{justify-content:space-between}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media (max-width:639px){
- .x,#keybtn
+ .x,#keybtn{display:none}
  .ph{display:inline-block}
  td .nm{max-width:100px}
  th,td{padding:8px 3px}
@@ -192,6 +193,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
   <p class="small muted" style="margin:8px 0 0">On iPhone the home-screen app keeps its own key. If you still have your key, paste it once inside the app. If not, open the app, press <b>How to renew</b> and make a new key there; then use only the app, and paste the new key on any other device.</p>
  </section>
  <div id="bars"></div>
+ <div id="keylive" class="sr" role="status"></div>
  <div id="calm"></div>
  <section class="panel" id="controls">
   <div class="row" role="group" aria-label="Filter set" id="sets">
@@ -967,14 +969,15 @@ function renderHeader() {
   else if (S.updated) bits.push((S.cached ? "cached, updating… " : "updated ") + new Date(S.updated).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}));
   h.append(" · " + bits.join(" · "));
 }
-function bar(box, cls, kids, live) { $(box).append(el("div", {cls: "bar fade " + cls, role: live ? "status" : null}, ...kids)); }
+function bar(box, cls, kids) { $(box).append(el("div", {cls: "bar fade " + cls}, ...kids)); }
 const act = (text, f) => el("a", {href: "#", text, onclick: e => { e.preventDefault(); f(); }});
-// Error bars above the summary (#bars), calm bars below it (#calm). Only the refused / ran-out bar is a live region, once.
+// Error bars above the summary (#bars), calm bars below it (#calm). Only the refused / ran-out bar is announced, once (#keylive).
 function renderBars() {
   $("bars").textContent = ""; $("calm").textContent = "";
   const err = (...k) => bar("bars", "err", k), kb = keyBar(), renew = () => act("How to renew", () => showKey("key"));
   const said = kb.band && bandText(kb.band, kb.days, dateLabel(kb.exp), standalone()) + " ";
-  if (kb.band === "out" || kb.band === "refused") { bar("bars", "err", [said, renew()], !S.keyBarShown); S.keyBarShown = true; }
+  if (kb.band === "out" || kb.band === "refused") { bar("bars", "err", [said, renew()]); if (!S.keyBarShown) $("keylive").textContent = said; S.keyBarShown = true; }
+  else $("keylive").textContent = "";
   if (S.noAccess) err("This key can't see " + REPO + ". Paste a key with access to it. ", act("Change key", () => showKey("key")));
   const st = S.status, log = () => el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
   const when = st && validTime(st.attempted_at) ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
@@ -1279,7 +1282,7 @@ function strip(t) {
 const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 // mode: false (closed), "key" (a new key or a renewal: the four steps) or "date" (Add date: the date only)
 function showKey(mode) {
-  const date = mode === "date"; $("keyp").hidden = !mode; $("keybtn").setAttribute("aria-expanded", String(!!mode)); $("kerr").textContent = "";
+  const date = mode === "date"; if (!mode) refocus($("keyp")); $("keyp").hidden = !mode; $("keybtn").setAttribute("aria-expanded", String(!!mode)); $("kerr").textContent = "";
   if (!mode) return;
   $("keyh").textContent = date ? "Add your key's end date" : S.key ? "Renew your key" : "Connect your private results";
   $("keyt").hidden = !!S.key || date; $("keyfind").hidden = !date;
@@ -1288,7 +1291,10 @@ function showKey(mode) {
   $("kdate").value = dateField(mode);
   $("keyp").scrollIntoView({block: "nearest"}); (date ? $("kdate") : $("keyin")).focus();
 }
+// A closing panel hands focus back to Key (desktop) or ⋯ (phone)
+const refocus = p => { if (p.contains(document.activeElement)) ($("keybtn").offsetParent ? $("keybtn") : $("more")).focus(); };
 function showHome(open) {
+  if (!open) refocus($("homep"));
   $("homep").hidden = !open;
   if (!open) return;
   const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua), ol = $("homesteps"), b = t => el("b", {text: t});
