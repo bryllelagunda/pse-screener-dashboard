@@ -980,7 +980,7 @@ function renderBars() {
   const err = (...k) => bar("bars", "err", k), kb = keyBar(), renew = () => act("How to renew", () => showKey("key"));
   const said = kb.band && bandText(kb.band, kb.days, dateLabel(kb.exp), standalone()) + " ";
   if (kb.band === "out" || kb.band === "refused") { bar("bars", "err", [said, renew()]); if (!S.keyBarShown) $("keylive").textContent = said; S.keyBarShown = true; }
-  else $("keylive").textContent = "";
+  else { $("keylive").textContent = ""; S.keyBarShown = false; } // the next refusal is announced again
   if (S.noAccess) err("This key can't see " + REPO + ". Paste a key with access to it. ", act("Change key", () => showKey("key")));
   const st = S.status, log = () => el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
   const when = st && validTime(st.attempted_at) ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
@@ -1018,7 +1018,7 @@ function renderAll() {
 class AuthError extends Error {}
 let gen = 0; // bumped when the key changes or a load starts, so a slower older load can't overwrite it
 async function gh(path, opts = {}) {
-  const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body,
+  const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body, signal: AbortSignal.timeout(30e3), // a hung request can't hold "updating…"
     headers: {Authorization: "Bearer " + S.key, Accept: opts.json ? "application/vnd.github+json" : "application/vnd.github.raw+json"}});
   const kind = authKind(r.status, r.headers);
   if (kind === "rate") throw new Error("GitHub rate limit reached; try again in a few minutes");
