@@ -101,7 +101,7 @@ function page(html, fail, lineOf) {
     if (n !== 1) fail("LINK-TAGS", P, 1, "each of the three allowed <link> tags must appear exactly once (found " + n + ")");
     rest = rest.split(tag).join("");
   }
-  const x = /<script[^>]+src=|<link[^>]+href=|@import|\burl\(/.exec(rest);
+  const x = /<[a-z][^>]*\s(src|srcset|poster|data)\s*=|<link[^>]+href=|@import|\burl\(/i.exec(rest); // any tag that loads a resource
   if (x) fail("EXT-LOAD", P, lineOf(rest, x.index), "external script, stylesheet or resource found");
   for (const m of html.matchAll(/https?:\/\/([^/"'\s);]+)/g))
     if (!["api.github.com", "github.com"].includes(m[1])) fail("HOSTS", P, lineOf(html, m.index), "unexpected host");
