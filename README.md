@@ -25,7 +25,7 @@ The page keeps the key's end date (`pse.keyExp`) on this device only; it never g
 address or a log. From 14 days before, a bar says how many days are left (warning colour from 3 days, "may
 stop working today" on the day), with **How to renew** (the four renewal steps) and **Later** (hides it until
 the next stage). When the date has passed, or GitHub refuses the key, a red bar says so. A key saved before
-this version asks once for its end date (**Add date**). Each device, and the iPhone home-screen app, keeps its
+this version asks for its end date (**Add date**; **Later** asks again after 30 days). Each device, and the iPhone home-screen app, keeps its
 own key and date.
 
 ## Home screen
