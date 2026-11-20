@@ -132,6 +132,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 #kdate{max-width:220px;min-height:44px;padding:0 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
 .bar a{margin-left:6px}
 .ph2{justify-content:space-between}
+.nokey .data{display:none}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media (max-width:639px){
  .x,#keybtn{display:none}
@@ -195,7 +196,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
    <button id="keyx" type="button">Cancel</button>
   </div>
  </section>
- <section class="panel" id="controls">
+ <section class="panel data" id="controls">
   <div class="row" role="group" aria-label="Filter set" id="sets">
    <button type="button" data-p="strict">Strict</button>
    <button type="button" data-p="loose">Loose</button>
@@ -224,7 +225,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
    <div class="ctl" id="sliders"></div>
   </div>
  </section>
- <div class="row" style="margin-top:12px;justify-content:space-between">
+ <div class="row data" style="margin-top:12px;justify-content:space-between">
   <div class="row chips" id="chips"></div>
   <input id="q" type="search" placeholder="Search ticker or name ( / )" aria-label="Search" style="min-width:220px">
  </div>
@@ -233,10 +234,10 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
   <table id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tb"></tbody></table>
   <div id="tblempty" class="empty" hidden></div>
  </section>
- <section class="panel"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span></h2><table class="list"><tbody id="missed"></tbody></table></section>
- <section class="panel" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span></h2><table class="list"><tbody id="knock"></tbody></table></section>
- <section class="panel"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
- <section class="panel"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
+ <section class="panel data"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span></h2><table class="list"><tbody id="missed"></tbody></table></section>
+ <section class="panel data" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span></h2><table class="list"><tbody id="knock"></tbody></table></section>
+ <section class="panel data"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
+ <section class="panel data"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
  <p class="small muted">Prices are read from your private repository with your key. This page stores nothing on any server; your key and a copy of the latest results stay in this browser.</p>
 </main>
 <div id="scrim" hidden></div>
@@ -1005,6 +1006,7 @@ function renderCompare() {
 function update() { syncControls(); settingsToURL(); compute(); render(); }
 function renderAll() {
   if (S.herr && H.state === "ok" && S.rows && behind(H, S.index, S.date)) H = {state: "broken", err: S.herr + "; the saved copy is out of date"};
+  document.body.classList.toggle("nokey", !S.key && !S.rows); // the first screen: the key panel, one line, the footer
   renderHeader(); renderBars(); renderCompare(); if (S.rows) compute(); render();
   if (S.want && !P && S.rows && (S.rows.some(r => r.symbol === S.want) || H.by && H.by.has(S.want))) { const s = S.want; S.want = null; openPanel(s, null, false); }
 }
