@@ -15,3 +15,7 @@ jobs:
       - run: node tests/screens.mjs
       - run: node tests/status.mjs
       - run: node tests/history.mjs
+      - run: node tests/guards.mjs
+      - run: node tests/key.mjs
+      - run: node tests/summary.mjs
+      - run: node tests/demo.mjs check

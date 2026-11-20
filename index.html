@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://api.github.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<meta name="theme-color" content="#16191f">
+<meta name="apple-mobile-web-app-title" content="PSE Screener">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="dark">
 <title>PSE Screener</title>
@@ -42,6 +49,8 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted);font-weight:600}
 .bar{border-radius:10px;padding:10px 14px;margin-top:12px;border:1px solid #6b5a2b;background:#2a2619}
 .bar.err{border-color:#6e3632;background:#2b1d1d}
 .bar.mute{border-color:var(--line);background:var(--panel);color:var(--muted)}
+.bar.calm{border-color:var(--line);background:var(--panel)}
+.bar.warn{border-color:var(--warn)}
 .ctl{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px 24px;margin-top:12px}
 .ctl label{display:block}
 .lab{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
@@ -73,7 +82,7 @@ tr.dim td{color:var(--muted)}
 .list td.go{width:24px;color:var(--muted);text-align:right}
 .list td.sub{font-size:12px;color:var(--muted);height:auto;padding-top:10px}
 .menuw{position:relative}
-#menu{position:absolute;right:0;top:48px;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:170px}
+#menu{position:absolute;right:0;top:48px;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:200px}
 #menu button{display:block;width:100%;text-align:left;border:0;background:none}#menu button:hover{background:#262b35}
 #scrim{position:fixed;inset:0;z-index:20;background:rgba(10,12,16,.55)}
 #sp{position:fixed;top:0;right:0;bottom:0;z-index:21;width:420px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:0 16px 24px}
@@ -120,8 +129,15 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 @keyframes f{from{opacity:.4}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fade{animation:none}}
 .ph{display:none}
+.steps{margin:8px 0 0;padding-left:20px}.steps li{margin:4px 0}
+.field{display:flex;flex-direction:column;gap:4px;margin-top:10px}.field label{font-size:13px;color:var(--muted)}
+#kdate{max-width:220px;min-height:44px;padding:0 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.bar a{margin-left:6px}
+.ph2{justify-content:space-between}
+.nokey .data{display:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media (max-width:639px){
- .x,#load,#keybtn{display:none}
+ .x,#keybtn{display:none}
  .ph{display:inline-block}
  td .nm{max-width:100px}
  th,td{padding:8px 3px}
@@ -148,28 +164,41 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
  <div class="row">
   <button id="run" type="button" title="Run the screener now (r)">Run now</button>
   <span id="runst" class="small muted" role="status" aria-live="polite"></span>
-  <button id="load" type="button">Load CSV</button>
   <select id="cmp" aria-label="Compare with"><option value="">Compare with…</option></select>
   <button id="keybtn" type="button" aria-expanded="false">Key</button>
   <span class="menuw ph"><button id="more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu" aria-label="More">⋯</button>
-   <span id="menu" role="menu" hidden><button type="button" role="menuitem" data-go="load">Load CSV</button><button type="button" role="menuitem" data-go="keybtn">Key</button></span></span>
-  <input id="file" type="file" accept=".csv,text/csv" multiple hidden>
-  <input id="cfile" type="file" accept=".csv,text/csv" hidden>
+   <span id="menu" role="menu" hidden><button type="button" role="menuitem" data-go="keybtn">Key</button><button type="button" role="menuitem" data-go="homego" id="homeitem">Add to home screen</button><button type="button" role="menuitem" data-go="refresh">Refresh</button></span></span>
  </div>
 </div></header>
 <main class="wrap">
- <section id="keyp" class="panel" hidden>
-  <h2 id="keyh">Connect your private results</h2>
-  <p class="small muted" id="keyt">Paste a fine-grained GitHub token. Give it access to the <b>pse-screener</b> repository only, with <b>Contents: read</b> and <b>Actions: read and write</b>, expiring in 90 days. It is stored in this browser only. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a token on GitHub</a>.</p>
-  <div class="row">
-   <input id="keyin" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" aria-label="GitHub token" style="flex:1;min-width:220px">
-   <button id="keysave" class="primary" type="button">Save key</button>
-   <button id="keyforget" type="button">Forget key</button>
-   <button id="keyload" type="button">Load CSV instead</button>
-  </div>
+ <section id="homep" class="panel" hidden>
+  <div class="row ph2"><h2 style="margin:0">Add to home screen</h2><button id="homex" type="button">Close</button></div>
+  <ol class="steps small" id="homesteps"></ol>
+  <p class="small muted" style="margin:8px 0 0">On iPhone the home-screen app keeps its own key. If you still have your key, paste it once inside the app. If not, open the app, press <b>How to renew</b> and make a new key there; then use only the app, and paste the new key on any other device.</p>
  </section>
  <div id="bars"></div>
- <section class="panel" id="controls">
+ <div id="keylive" class="sr" role="status"></div>
+ <div id="calm"></div>
+ <section id="keyp" class="panel" hidden>
+  <h2 id="keyh">Connect your private results</h2>
+  <p class="small muted" id="keyt">This page reads your screener's results from your private GitHub repository with a key that stays in this browser.</p>
+  <p class="small muted" id="keyfind" hidden>Find it on <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">GitHub's token page</a>, next to the pse-screener key.</p>
+  <ol class="steps small" id="steps">
+   <li>Open <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">GitHub's token page</a>.</li>
+   <li>Make a new key, or regenerate the pse-screener one; keep 90 days. A new key needs the <b>pse-screener</b> repository only, <b>Contents: read</b> and <b>Actions: read and write</b>. Copy the key.</li>
+   <li>Paste it here, check the date, press <b>Save key</b>.</li>
+   <li>Paste the new key everywhere you use the page: your other phone or computer, <b>and the home-screen app if you added one</b> (on iPhone it keeps its own copy). The old key stops working as soon as you regenerate it.</li>
+  </ol>
+  <div class="field" id="kbox"><label for="keyin" id="keylab">Key</label><input id="keyin" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></div>
+  <div class="field"><label for="kdate">Your key runs out on</label><input id="kdate" type="date"><span id="kerr" class="small why" role="alert"></span></div>
+  <div class="row" style="margin-top:12px">
+   <button id="keysave" class="primary" type="button">Save key</button>
+   <button id="datesave" class="primary" type="button" hidden>Save date</button>
+   <button id="keyforget" type="button">Forget key</button>
+   <button id="keyx" type="button">Cancel</button>
+  </div>
+ </section>
+ <section class="panel data" id="controls">
   <div class="row" role="group" aria-label="Filter set" id="sets">
    <button type="button" data-p="strict">Strict</button>
    <button type="button" data-p="loose">Loose</button>
@@ -198,7 +227,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
    <div class="ctl" id="sliders"></div>
   </div>
  </section>
- <div class="row" style="margin-top:12px;justify-content:space-between">
+ <div class="row data" style="margin-top:12px;justify-content:space-between">
   <div class="row chips" id="chips"></div>
   <input id="q" type="search" placeholder="Search ticker or name ( / )" aria-label="Search" style="min-width:220px">
  </div>
@@ -207,11 +236,11 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
   <table id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tb"></tbody></table>
   <div id="tblempty" class="empty" hidden></div>
  </section>
- <section class="panel"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span></h2><table class="list"><tbody id="missed"></tbody></table></section>
- <section class="panel" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span></h2><table class="list"><tbody id="knock"></tbody></table></section>
- <section class="panel"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
- <section class="panel"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
- <p class="small muted">Prices are read from your private repository with your key, or from a file you load. This page stores nothing on any server.</p>
+ <section class="panel data"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span></h2><table class="list"><tbody id="missed"></tbody></table></section>
+ <section class="panel data" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span></h2><table class="list"><tbody id="knock"></tbody></table></section>
+ <section class="panel data"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
+ <section class="panel data"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
+ <p class="small muted">Prices are read from your private repository with your key. This page stores nothing on any server; your key and a copy of the latest results stay in this browser.</p>
 </main>
 <div id="scrim" hidden></div>
 <aside id="sp" role="dialog" aria-modal="true" aria-labelledby="sps" tabindex="-1" hidden>
@@ -480,15 +509,17 @@ const sign = (x, d = 1) => (x > 0 ? "+" : x < 0 ? MINUS : "") + Math.abs(x).toFi
 const price = x => x === null ? "—" : x.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: x < 1 ? 4 : 2});
 const pct = (x, d = 1) => x === null ? "—" : x.toFixed(d) + "%";
 const spct = (x, d = 1) => x === null ? "—" : sign(x, d) + "%";
+/* STATUS-START: run-schedule lines in the status bar (tests/status.mjs checks it) */
+const manila = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3); // Asia/Manila is UTC+8, no DST
+const manilaISO = d => manila(d).toISOString().slice(0, 10);
+const addDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString().slice(0, 10);
+const dayDiff = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
 function dateLabel(iso, withYear) {
   if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return String(iso || "unknown date");
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US",
     {weekday: "short", month: "short", day: "numeric", year: withYear ? "numeric" : undefined, timeZone: "UTC"});
 }
-/* STATUS-START: run-schedule lines in the status bar (tests/status.mjs checks it) */
-const manila = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3); // Asia/Manila is UTC+8, no DST
-const manilaISO = d => manila(d).toISOString().slice(0, 10);
 const validTime = t => typeof t === "string" && !isNaN(Date.parse(t));
 const cleanIndex = v => Array.isArray(v) ? v.filter(e => e && typeof e === "object") : []; // a bad file or cache can't break the page
 // After 4:50pm Tue–Sat (the 7:50am backup's start plus 9 hours: GitHub has started it up to 7h39m late):
@@ -506,20 +537,77 @@ function missedRun(st, index, holidays, now = new Date()) {
   return st.slot !== "morning" || st.expected_date !== prev;
 }
 // Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
-const showMissed = (s, now = new Date()) => !s.source && !s.cached && !s.refreshErr && !s.authErr && !!(s.status || s.index.length) &&
+const showMissed = (s, now = new Date()) => !s.cached && !s.refreshErr && !s.authErr && !!(s.status || s.index.length) &&
   missedRun(s.status, s.index, s.holidays, now);
 /* STATUS-END */
+/* SUMMARY-START: when to refresh (tests/summary.mjs checks it) */
+const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
+// Coming back to the page: reload when nothing has loaded or been tried for 10 minutes, one load at a time
+const shouldRefresh = (s, now, hidden) => !hidden && !!s.key && !s.loading && now - Math.max(s.updated || 0, s.tried || 0) > 10 * 60e3;
+/* SUMMARY-END */
+/* KEY-START: the key's end date and its reminders (tests/key.mjs checks it). Nothing here sends a request; the date stays on this device. */
+const NAG_BANDS = ["14", "3", "nodate"]; // the bars Later can hide
+const defaultExpiry = (now = new Date()) => addDays(manilaISO(now), 90);
+const dateField = (mode, now) => mode === "date" ? "" : defaultExpiry(now); // a new key or a renewal: today + 90; Add date: empty
+function validateExpiry(v, now = new Date()) {
+  if (!isDay(v)) return "Enter the date your key runs out.";
+  const d = dayDiff(manilaISO(now), v);
+  return d < 0 ? "That date has passed. Check it on GitHub's token page." : d > 366 ? "That's more than a year away. Check it on GitHub's token page." : "";
+}
+// At most one key bar: refused or ran out, then today, then 3 days, then 14 days, then no date. Later hides 14, 3 and no date.
+function keyBand(exp, nag, refused, now = new Date()) {
+  const today = manilaISO(now), days = isDay(exp) ? dayDiff(today, exp) : null;
+  const band = days !== null && days < 0 ? "out" : refused ? "refused" : days === null ? "nodate" : days === 0 ? "0" : days <= 3 ? "3" : days <= 14 ? "14" : null;
+  const ok = nag && typeof nag === "object" && NAG_BANDS.includes(nag.band) && (nag.until === null || isDay(nag.until));
+  return {band: ok && nag.band === band && (band !== "nodate" || !!nag.until && today < nag.until) ? null : band, days};
+}
+function bandText(band, days, label, standalone) {
+  const n = plural(days, "day", "days");
+  return {
+    "14": "Your key runs out in " + n + " (" + label + "). Renew it.",
+    "3": "Your key runs out in " + n + " (" + label + "). Renew it now so your results keep loading.",
+    "0": "Your key may stop working today. Renew it now.",
+    out: "Your key ran out on " + label + ". Make a new one to see your results.",
+    refused: "GitHub didn't accept this key. If you made a new key " + (standalone ? "in Safari or on another device" : "on another device") +
+      ", paste it here; if not, make a new one.",
+    nodate: "Add your key's end date so this page can remind you before it runs out.",
+  }[band] || "";
+}
+// Only a 401, or a 403 that is not a rate limit, means the key was refused
+const authKind = (status, h) => status === 403 && (h.get("x-ratelimit-remaining") === "0" || h.get("retry-after")) ? "rate"
+  : status === 401 || status === 403 ? "auth" : "";
+const keyBar = () => { const exp = store.get("keyExp", null); return S.key ? {...keyBand(exp, store.get("keyNag", null), S.authErr), exp} : {band: null}; };
+function keyLater(band) { store.set("keyNag", {band, until: band === "nodate" ? addDays(manilaISO(), 30) : null}); renderBars(); }
+function saveKey() {
+  const k = $("keyin").value.trim(), d = $("kdate").value, err = validateExpiry(d);
+  if (!k) { $("keyin").focus(); return; }
+  if (err) { $("kerr").textContent = err; $("kdate").focus(); return; }
+  gen++; S.key = k; store.set("key", k); store.set("keyExp", d); store.del("keyNag"); S.keyBarShown = false;
+  $("keyin").value = ""; S.authErr = S.noAccess = false; H = {state: "loading"}; showKey(false); renderAll(); loadRemote();
+}
+function saveDate() {
+  const d = $("kdate").value, err = validateExpiry(d);
+  if (err) { $("kerr").textContent = err; $("kdate").focus(); return; }
+  store.set("keyExp", d); store.del("keyNag"); showKey(false); renderBars();
+}
+function forgetKey() {
+  gen++; hgen++; S.key = ""; store.del("key"); store.del("keyExp"); store.del("keyNag"); store.del("cache"); H = {state: "missing"}; S.htext = null;
+  Object.assign(S, {rows: null, date: null, meta: null, index: [], status: null, cmpRows: null, cmpDate: null, msg: null, keyBarShown: false,
+    authErr: false, noAccess: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false});
+  showKey("key"); renderAll();
+}
+/* KEY-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
 const safeUrl = u => typeof u === "string" && /^https:\/\/github\.com\//.test(u) ? u : "https://github.com/" + OWNER + "/" + REPO + "/actions";
 
 // ------------------------------------------------------------------ state
 const S = {
   key: store.get("key", ""),
-  rows: null, date: null, meta: null, source: "", updated: null, cached: false,
+  rows: null, date: null, meta: null, updated: null, tried: null, loading: 0, cached: false,
   index: [], status: null, holidays: new Set(),
   cmpRows: null, cmpDate: null,
-  preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", hsrc: "", htext: null, herr: null, want: null,
-  parity: 0, fixtureBad: 0, authErr: false, refreshErr: null, msg: null, missed: false,
+  preset: "strict", set: {...STRICT}, view: "pass", sort: {k: "cci20", dir: -1}, q: "", htext: null, herr: null, want: null,
+  parity: 0, fixtureBad: 0, authErr: false, noAccess: false, keyBarShown: false, refreshErr: null, msg: null, missed: false,
   screens: loadScreens(store.get("screens", [])), screen: null, dirty: false, fopen: store.get("filtersOpen", true) !== false,
 };
 let P = null; // open stock panel: {sym, from, pushed}
@@ -868,7 +956,7 @@ function renderEmpty() {
   $("thr").textContent = ""; $("tb").textContent = ""; $("chips").textContent = ""; $("tnote").hidden = $("knp").hidden = true;
   for (const id of ["missed", "dropped", "ns"]) $(id).textContent = "";
   $("tblempty").hidden = false;
-  $("tblempty").textContent = S.msg || (S.key ? "Loading results…" : "Paste your key above, or press Load CSV to open a results file.");
+  $("tblempty").textContent = S.msg || (S.key ? "Loading results…" : "Paste your key above to see your results.");
 }
 function renderHeader() {
   const h = $("hdr"); h.textContent = "";
@@ -880,59 +968,70 @@ function renderHeader() {
   if (m && m.finished_at) bits.push("fetched " + timeLabel(m.finished_at));
   const scanned = m ? m.scanned : S.rows.length, failed = m ? m.fetch_failed : S.rows.filter(r => r.fetch_error).length;
   bits.push(scanned + " stocks scanned", failed + " had no data");
-  if (S.source) bits.push(S.source);
-  if (S.updated) bits.push((S.cached ? "cached, updating… " : "updated ") + new Date(S.updated).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}));
+  if (S.loading && !S.cached) bits.push("updating…");
+  else if (S.updated) bits.push((S.cached ? "cached, updating… " : "updated ") + new Date(S.updated).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}));
   h.append(" · " + bits.join(" · "));
 }
-function bar(cls, ...kids) { $("bars").append(el("div", {cls: "bar fade " + cls, role: "status"}, ...kids)); }
+function bar(box, cls, kids) { $(box).append(el("div", {cls: "bar fade " + cls}, ...kids)); }
+const act = (text, f) => el("a", {href: "#", text, onclick: e => { e.preventDefault(); f(); }});
+// Error bars above the summary (#bars), calm bars below it (#calm). Only the refused / ran-out bar is announced, once (#keylive).
 function renderBars() {
-  $("bars").textContent = "";
-  if (S.authErr) bar("err", "Key expired or wrong: paste a new one with access to " + REPO + ". ", el("a", {href: "#", text: "Change key", onclick: e => { e.preventDefault(); showKey(true); }}));
-  if (S.refreshErr) bar("", "Couldn't refresh from GitHub (" + S.refreshErr + "). Showing the results saved " + (S.updated ? new Date(S.updated).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "earlier") + ". Reload to try again.");
-  if (S.parity) bar("err", "Dashboard logic disagrees with screener for " + S.parity + " stock" + (S.parity === 1 ? "" : "s") + ". If this file was made before a filter change, re-run the screener; otherwise trust its own pass lists until this is fixed.");
+  $("bars").textContent = ""; $("calm").textContent = "";
+  const err = (...k) => bar("bars", "err", k), kb = keyBar(), renew = () => act("How to renew", () => showKey("key"));
+  const said = kb.band && bandText(kb.band, kb.days, dateLabel(kb.exp), standalone()) + " ";
+  if (kb.band === "out" || kb.band === "refused") { bar("bars", "err", [said, renew()]); if (!S.keyBarShown) $("keylive").textContent = said; S.keyBarShown = true; }
+  else { $("keylive").textContent = ""; S.keyBarShown = false; } // the next refusal is announced again
+  if (S.noAccess) err("This key can't see " + REPO + ". Paste a key with access to it. ", act("Change key", () => showKey("key")));
+  const st = S.status, log = () => el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
+  const when = st && validTime(st.attempted_at) ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
+  if (st && st.state === "failed") err("⚠ Last run failed" + when + ": " + (st.error || "unknown error") + ". Showing " + (S.date ? dateLabel(S.date) : "older") + " data. ", log());
+  if (S.refreshErr) bar("bars", "", ["Couldn't refresh from GitHub (" + S.refreshErr + "). Showing the results saved " + (S.updated ? new Date(S.updated).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "earlier") + ". Reload to try again."]);
+  if (S.parity) err("Dashboard logic disagrees with screener for " + S.parity + " stock" + (S.parity === 1 ? "" : "s") + ". If this file was made before a filter change, re-run the screener; otherwise trust its own pass lists until this is fixed.");
   const dis = S.rows ? tracks().dis : 0;
-  if (dis) bar("err", "History disagrees with today's file for " + dis + " stock" + (dis === 1 ? "" : "s") + ". Trust today's file; the next run rebuilds the history.");
-  if (S.fixtureBad) bar("err", "Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing). Trust the screener's own pass lists until this is fixed.");
-  const st = S.status;
-  if (st && !S.source) {
-    const log = el("a", {href: safeUrl(st.run_url), target: "_blank", rel: "noopener noreferrer", text: "open log"});
-    const when = validTime(st.attempted_at) ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
-    if (st.state === "failed") bar("err", "⚠ Last run failed" + when + ": " + (st.error || "unknown error") + ". Showing " + (S.date ? dateLabel(S.date) : "older") + " data. ", log);
-    else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
-  }
+  if (dis) err("History disagrees with today's file for " + dis + " stock" + (dis === 1 ? "" : "s") + ". Trust today's file; the next run rebuilds the history.");
+  if (S.fixtureBad) err("Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing). Trust the screener's own pass lists until this is fixed.");
+  const later = () => act("Later", () => keyLater(kb.band));
+  if (kb.band === "0") bar("calm", "warn", [said, renew()]);
+  if (kb.band === "3") bar("calm", "warn", [said, renew(), later()]);
+  if (kb.band === "14") bar("calm", "calm", [said, renew(), later()]);
+  if (kb.band === "nodate") bar("calm", "calm", [said, act("Add date", () => showKey("date")), later()]);
+  if (st && st.state === "no_new_session") bar("calm", "", ["⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log()]);
   if (S.missed = showMissed(S))
-    bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",
-      el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), ".");
+    bar("calm", "", ["⚠ Scheduled run did not run this morning. Press Run now, or ", el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), "."]);
 }
 function renderCompare() {
   const sel = $("cmp"); sel.textContent = "";
   sel.append(el("option", {value: "", text: "Compare with…"}));
   for (const e of S.index) if (cmpOk(e.date)) sel.append(el("option", {value: e.date, text: dateLabel(e.date, true) + (e.final ? "" : " (provisional)")}));
-  sel.append(el("option", {value: "@file", text: "A CSV file…"}));
-  if (S.cmpRows) {
-    if (![...sel.options].some(o => o.value === S.cmpDate)) sel.append(el("option", {value: S.cmpDate, text: dateLabel(S.cmpDate, true) + " (file)"}));
-    sel.value = S.cmpDate;
-  } else sel.value = "";
+  sel.value = S.cmpRows ? S.cmpDate : "";
+  sel.hidden = !S.rows; // nothing to compare before results load
 }
 function update() { syncControls(); settingsToURL(); compute(); render(); }
 function renderAll() {
   if (S.herr && H.state === "ok" && S.rows && behind(H, S.index, S.date)) H = {state: "broken", err: S.herr + "; the saved copy is out of date"};
+  document.body.classList.toggle("nokey", !S.key && !S.rows); // the first screen: the key panel, one line, the footer
   renderHeader(); renderBars(); renderCompare(); if (S.rows) compute(); render();
   if (S.want && !P && S.rows && (S.rows.some(r => r.symbol === S.want) || H.by && H.by.has(S.want))) { const s = S.want; S.want = null; openPanel(s, null, false); }
 }
 
 // ------------------------------------------------------------------ data
 class AuthError extends Error {}
-let gen = 0; // bumped when the key or the shown file changes, so a slower older load can't overwrite it
+let gen = 0; // bumped when the key changes or a load starts, so a slower older load can't overwrite it
 async function gh(path, opts = {}) {
-  const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body,
+  const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body, signal: opts.signal,
     headers: {Authorization: "Bearer " + S.key, Accept: opts.json ? "application/vnd.github+json" : "application/vnd.github.raw+json"}});
-  if (r.status === 403 && (r.headers.get("x-ratelimit-remaining") === "0" || r.headers.get("retry-after")))
-    throw new Error("GitHub rate limit reached; try again in a few minutes");
-  if (r.status === 401 || r.status === 403) throw new AuthError();
+  const kind = authKind(r.status, r.headers);
+  if (kind === "rate") throw new Error("GitHub rate limit reached; try again in a few minutes");
+  if (kind === "auth") throw new AuthError();
   return r;
 }
-const fileText = async (path) => { const r = await gh("/contents/" + path); if (r.status === 404) return null; if (!r.ok) throw new Error(path + ": HTTP " + r.status); return r.text(); };
+// A file read gives up after 30 s, so a hung request can't hold "updating…" (Run now's calls keep no limit)
+const fileText = async (path) => {
+  const c = new AbortController(), t = setTimeout(() => c.abort(new Error(path + ": no answer in 30 seconds")), 30e3);
+  try { const r = await gh("/contents/" + path, {signal: c.signal}); if (r.status === 404) return null; if (!r.ok) throw new Error(path + ": HTTP " + r.status); return await r.text(); }
+  catch (e) { throw c.signal.aborted && c.signal.reason instanceof Error ? c.signal.reason : e; }
+  finally { clearTimeout(t); }
+};
 const csvDate = rows => (rows.find(r => r.data_date) || {}).data_date || null;
 function setCurrent(csv) {
   S.rows = parseCSV(csv);
@@ -952,58 +1051,59 @@ function defaultCompare() {
   const prev = S.index.find(e => e.final && cmpOk(e.date));
   return prev ? prev.date : null;
 }
-// x: text, null (no file) or an Error. Only a remote one is cached.
-function setHistory(x, remote) {
+// x: text, null (no file) or an Error
+function setHistory(x) {
   if (x === null) H = {state: "missing"};
   else if (x instanceof Error) H = {state: "broken", err: x.message || "no access"};
   else try { H = parseHistory(x); } catch (e) { H = {state: "broken", err: e.message}; }
-  if (remote) S.htext = typeof x === "string" ? x : null;
+  S.htext = typeof x === "string" ? x : null;
 }
 // Storage full: keep the rest without the history
 const saveCache = c => store.set("cache", {...c, history: S.htext}) || store.set("cache", {...c, history: null});
 let hgen = 0; // like gen, for history
-async function loadHist(replaceFile) {
-  if (S.hsrc && !replaceFile) return;
-  const my = ++hgen; S.hsrc = "";
+async function loadHist() {
+  const my = ++hgen;
   const x = await fileText("results/history.csv").catch(e => e);
   if (my !== hgen) return;
   if (x instanceof Error && H.state === "ok") { S.herr = x.message || "no access"; renderAll(); return; }
-  S.herr = null; setHistory(x, true);
+  S.herr = null; setHistory(x);
   const c = store.get("cache", null); if (c) saveCache(c);
   renderAll();
 }
-async function loadRemote(replaceFile) {
+async function loadRemote() {
   if (!S.key) return;
-  loadHist(replaceFile); // in parallel: the table doesn't wait for it
+  loadHist(); // in parallel: the table doesn't wait for it
   const my = ++gen;
-  const stale = () => my !== gen || (S.source && !replaceFile); // a newer load, or a file the user opened, wins
+  S.loading = my; renderHeader(); // "updating…"; S.loading is cleared only by the newest load
+  const stale = () => my !== gen;
   try {
     const [csv, idx, st, hol] = await Promise.all(["latest.csv", "index.json", "status.json"].map(f => fileText("results/" + f)).concat(fileText("data/holidays.csv")));
     if (stale()) return;
-    S.authErr = false; S.refreshErr = null;
+    S.authErr = S.noAccess = false; S.refreshErr = null;
     S.index = cleanIndex(idx ? JSON.parse(idx) : []);
     const sj = st ? JSON.parse(st) : null; S.status = sj && typeof sj === "object" && !Array.isArray(sj) ? sj : null;
     S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
-    if (!csv && !idx && !hol) { S.authErr = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; renderAll(); return; } // a key without access to the repo gets 404s
-    if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; renderAll(); return; }
-    S.source = ""; setCurrent(csv);
+    if (!csv && !idx && !hol) { S.noAccess = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; return; } // a key without access to the repo gets 404s
+    if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; return; }
+    setCurrent(csv);
     S.updated = Date.now(); S.cached = false; S.msg = null;
     const cd = cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
     const ccsv = cd ? await fileText("results/" + cd + ".csv") : null;
     if (my !== gen) return;
     setCompare(ccsv, cd);
     saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : null, at: S.updated});
-    renderAll();
     checkFixture(my);
   } catch (e) {
     if (my !== gen) return;
-    if (e instanceof AuthError) S.authErr = true;
+    if (e instanceof AuthError) { S.authErr = true; if (!S.rows) S.msg = "Your results can't load until the key is fixed (see above)."; }
     else if (S.rows) S.refreshErr = e.message;
     else S.msg = "Couldn't reach GitHub (" + e.message + "). Check your connection and reload.";
     S.cached = false;
-    renderAll();
+  } finally {
+    if (my === gen) { S.loading = 0; S.tried = Date.now(); renderAll(); }
   }
 }
+const refresh = () => { if (!S.loading) loadRemote(); }; // Refresh in the ⋯ menu: a second press while loading does nothing
 async function checkFixture(my) {
   try {
     const t = await fileText("tests/fixtures/filter_cases.json");
@@ -1023,24 +1123,14 @@ function loadCache() {
   S.holidays = new Set(Array.isArray(c.holidays) ? c.holidays : []);
   setCurrent(c.csv);
   if (c.cmp && cmpOk(c.cmp.date)) setCompare(c.cmp.csv, c.cmp.date);
-  if (typeof c.history === "string") setHistory(c.history, true);
+  if (typeof c.history === "string") setHistory(c.history);
   S.updated = c.at; S.cached = true;
 }
-function readFiles(input) {
-  const fs = [...input.files]; input.value = "";
-  return Promise.all(fs.map(f => new Promise((res, rej) => {
-    const fr = new FileReader(); fr.onload = () => res({name: f.name, text: fr.result}); fr.onerror = () => rej(fr.error); fr.readAsText(f);
-  })));
-}
-const readFile = async input => { const [f] = await readFiles(input); if (!f) throw new Error("no file"); return f; };
-const looksLikeHistory = t => t.replace(/^\ufeff/, "").startsWith(HHEAD);
-const looksLikeResults = t => /^﻿?symbol,name,data_date,/.test(t) && !!csvDate(parseCSV(t));
-
 // ------------------------------------------------------------------ run now
 let running = false;
 async function runNow() {
   if (running) return;
-  if (!S.key) { showKey(true); return; }
+  if (!S.key) { showKey("key"); return; }
   running = true; $("run").disabled = true;
   const st = t => { $("runst").textContent = ""; $("runst").append(...[].concat(t)); };
   const link = (u, t) => el("a", {href: safeUrl(u), target: "_blank", rel: "noopener noreferrer", text: t});
@@ -1072,7 +1162,7 @@ async function runNow() {
         if (run.status === "completed") {
           if (run.conclusion === "success") st("Done");
           else st(["Failed (", link(run.html_url, "open log"), ")"]);
-          await loadRemote(true); // show the fresh results even if a file was open
+          await loadRemote(); // show the fresh results
           return;
         }
         st("Running…");
@@ -1199,12 +1289,30 @@ function strip(t) {
   return [box, day];
 }
 
-// ------------------------------------------------------------------ key panel
-function showKey(open) {
-  const p = $("keyp"); p.hidden = !open; $("keybtn").setAttribute("aria-expanded", String(open));
-  $("keyforget").hidden = !S.key;
-  $("keyh").textContent = S.key ? "Your key" : "Connect your private results";
-  if (open) $("keyin").focus();
+// ------------------------------------------------------------------ key panel and the phone panel
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+// mode: false (closed), "key" (a new key or a renewal: the four steps) or "date" (Add date: the date only)
+function showKey(mode) {
+  const date = mode === "date"; if (!mode) refocus($("keyp")); $("keyp").hidden = !mode; $("keybtn").setAttribute("aria-expanded", String(!!mode)); $("kerr").textContent = "";
+  if (!mode) return;
+  $("keyh").textContent = date ? "Add your key's end date" : S.key ? "Renew your key" : "Connect your private results";
+  $("keylab").textContent = S.key ? "New key" : "Key"; $("keyt").hidden = !!S.key || date; $("keyfind").hidden = !date;
+  $("steps").hidden = $("kbox").hidden = $("keysave").hidden = date; $("datesave").hidden = !date;
+  $("keyforget").hidden = date || !S.key; $("keyx").hidden = !S.key;
+  $("kdate").value = dateField(mode);
+  $("keyp").scrollIntoView({block: "nearest"}); (date ? $("kdate") : $("keyin")).focus();
+}
+// A closing panel hands focus back to Key (desktop) or ⋯ (phone)
+const refocus = p => { if (p.contains(document.activeElement)) ($("keybtn").offsetParent ? $("keybtn") : $("more")).focus(); };
+function showHome(open) {
+  if (!open) refocus($("homep"));
+  $("homep").hidden = !open;
+  if (!open) return;
+  const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua), ol = $("homesteps"), b = t => el("b", {text: t});
+  ol.textContent = "";
+  if (ios || !android) ol.append(el("li", null, ios ? "" : "iPhone: ", "Tap ", b("Share"), " at the bottom of Safari."), el("li", null, "Tap ", b("Add to Home Screen"), ", then ", b("Add"), "."));
+  if (android || !ios) ol.append(el("li", null, ios || android ? "" : "Android: ", "Tap ", b("⋮"), " in Chrome, then ", b("Add to home screen"), " (or ", b("Install app"), ")."));
+  $("homep").scrollIntoView({block: "nearest"}); $("homex").focus();
 }
 
 // ------------------------------------------------------------------ wire up
@@ -1220,57 +1328,25 @@ function init() {
   buildControls(); syncControls(); syncPanel(); settingsToURL();
   $("q").addEventListener("input", e => { S.q = e.target.value; if (S.rows) render(); });
   $("run").addEventListener("click", runNow);
-  $("load").addEventListener("click", () => $("file").click());
-  $("keyload").addEventListener("click", () => $("file").click());
-  let pick = 0;
-  $("file").addEventListener("change", async () => {
-    try {
-      const my = ++pick, fs = await readFiles($("file"));
-      if (my !== pick) return;
-      const hf = fs.find(f => looksLikeHistory(f.text)), f = fs.find(f => f !== hf);
-      if (!fs.length) return;
-      if (f && !looksLikeResults(f.text) || fs.length > (hf ? 2 : 1)) { alert("Pick one screener results CSV, its history.csv, or both."); return; }
-      if (hf) { hgen++; S.hsrc = hf.name; S.herr = null; setHistory(hf.text, false); }
-      if (f) {
-        gen++;
-        S.source = "from " + f.name; setCurrent(f.text); S.updated = null; S.cached = false; S.msg = null; S.refreshErr = null;
-        if (!cmpOk(S.cmpDate)) setCompare(null);
-      }
-      showKey(false); renderAll();
-    } catch { /* cancelled */ }
-  });
   $("cmp").addEventListener("change", async e => {
     const v = e.target.value;
-    if (v === "@file") { $("cfile").click(); renderCompare(); return; }
     if (!v) { setCompare(null); renderAll(); return; }
     try { const t = await fileText("results/" + v + ".csv"); setCompare(t, v); }
     catch (err) { if (err instanceof AuthError) S.authErr = true; setCompare(null); }
     renderAll();
   });
-  $("cfile").addEventListener("change", async () => {
-    try {
-      const f = await readFile($("cfile"));
-      if (!looksLikeResults(f.text)) { alert("That file isn't a screener results CSV."); return; }
-      setCompare(f.text, null);
-      if (!cmpOk(S.cmpDate)) { alert("Pick a results file from before " + dateLabel(S.date) + "."); setCompare(null); }
-      renderAll();
-    } catch { /* cancelled */ }
-  });
-  $("keybtn").addEventListener("click", () => showKey($("keyp").hidden));
-  $("keysave").addEventListener("click", () => {
-    const k = $("keyin").value.trim(); if (!k) return;
-    gen++; S.key = k; store.set("key", k); $("keyin").value = ""; S.authErr = false; H = {state: "loading"}; showKey(false); renderAll(); loadRemote(true);
-  });
-  $("keyforget").addEventListener("click", () => {
-    gen++; hgen++; S.key = ""; store.del("key"); store.del("cache"); H = {state: "missing"}; S.htext = null; S.hsrc = "";
-    Object.assign(S, {rows: null, date: null, meta: null, index: [], status: null, cmpRows: null, cmpDate: null, source: "", msg: null,
-      authErr: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false});
-    showKey(true); renderAll();
-  });
-  const more = $("more"), menu = $("menu"), items = [...menu.children];
+  $("keybtn").addEventListener("click", () => showKey($("keyp").hidden && "key"));
+  $("keysave").addEventListener("click", saveKey);
+  $("datesave").addEventListener("click", saveDate);
+  $("keyforget").addEventListener("click", forgetKey);
+  $("keyx").addEventListener("click", () => showKey(false));
+  $("homex").addEventListener("click", () => showHome(false));
+  $("homeitem").hidden = standalone();
+  const GO = {keybtn: () => showKey($("keyp").hidden && "key"), homego: () => showHome(true), refresh};
+  const more = $("more"), menu = $("menu"), items = [...menu.children].filter(b => !b.hidden);
   const setMenu = o => { menu.hidden = !o; more.setAttribute("aria-expanded", String(o)); if (o) items[0].focus(); };
   more.addEventListener("click", () => setMenu(menu.hidden));
-  for (const b of items) b.addEventListener("click", () => { setMenu(false); $(b.dataset.go).click(); });
+  for (const b of items) b.addEventListener("click", () => { setMenu(false); GO[b.dataset.go](); });
   menu.addEventListener("keydown", e => {
     const i = items.indexOf(document.activeElement);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
@@ -1290,6 +1366,7 @@ function init() {
   window.addEventListener("popstate", () => { const s = new URLSearchParams(location.search).get("s"); if (!s) closePanel(true); else if (!P) openPanel(s, null, false); });
   document.addEventListener("keydown", e => {
     if (P) { if (e.key === "Escape") { e.preventDefault(); closePanel(); } return; }
+    if (e.key === "Escape" && !$("homep").hidden) showHome(false);
     if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
     if (e.key === "/") { e.preventDefault(); $("q").focus(); }
     else if (e.key === "r" && confirm("Run the screener now?")) runNow();
@@ -1297,11 +1374,14 @@ function init() {
   const hdr = document.querySelector("header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--hh", hdr.offsetHeight + "px")).observe(hdr);
   // The 4:50pm and midnight edges in a tab left open: before the missed-run line turns on, reload, since the backup may have run since
-  const recheck = () => { if (document.hidden) return; if (showMissed(S) && !S.missed && S.key) loadRemote(); else renderBars(); };
+  const recheck = () => {
+    if (document.hidden) return;
+    if (shouldRefresh(S, Date.now(), document.hidden) || showMissed(S) && !S.missed && S.key) loadRemote(); else renderBars();
+  };
   document.addEventListener("visibilitychange", recheck);
   setInterval(() => { if (!document.hidden && showMissed(S) !== S.missed) recheck(); }, 60e3);
   loadCache();
-  if (!S.key && !S.rows) showKey(true);
+  if (!S.key && !S.rows) showKey("key");
   renderAll();
   loadRemote();
 }
