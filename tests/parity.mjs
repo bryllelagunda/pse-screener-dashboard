@@ -90,9 +90,9 @@ for (const path of csvs) {
 }
 
 // 5. parseCSV edge cases the screener's own files don't contain.
-// Value: protects=Load CSV reads Excel-resaved or hand-edited results files correctly;
+// Value: protects=the page reads Excel-resaved or hand-edited results files correctly;
 //   fails_when=the invisible BOM literal is stripped by an editor, "" escapes or quoted newlines break, short rows or blank lines mis-parse, or empty cells become 0/"" instead of null;
-//   why_new=the real results CSV has no BOM, no "" escapes and no short rows; seam=none; no_claim=file picker, looksLikeResults gate, rendering.
+//   why_new=the real results CSV has no BOM, no "" escapes and no short rows; seam=none; no_claim=rendering.
 {
   const text = '﻿symbol,name,sessions,stale,pass_strict\r\nAAA,"Foo, ""Inc""\nline2",12,true,false\r\nBBB,,,,\r\n\r\nCCC,Bar';
   const want = [{symbol: "AAA", name: 'Foo, "Inc"\nline2', sessions: 12, stale: true, pass_strict: false},
