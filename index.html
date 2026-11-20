@@ -187,7 +187,7 @@ details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
    <li>Paste it here, check the date, press <b>Save key</b>.</li>
    <li>Paste the new key everywhere you use the page: your other phone or computer, <b>and the home-screen app if you added one</b> (on iPhone it keeps its own copy). The old key stops working as soon as you regenerate it.</li>
   </ol>
-  <div class="field" id="kbox"><label for="keyin">Key</label><input id="keyin" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></div>
+  <div class="field" id="kbox"><label for="keyin" id="keylab">Key</label><input id="keyin" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></div>
   <div class="field"><label for="kdate">Your key runs out on</label><input id="kdate" type="date"><span id="kerr" class="small why" role="alert"></span></div>
   <div class="row" style="margin-top:12px">
    <button id="keysave" class="primary" type="button">Save key</button>
@@ -1288,7 +1288,7 @@ function showKey(mode) {
   const date = mode === "date"; if (!mode) refocus($("keyp")); $("keyp").hidden = !mode; $("keybtn").setAttribute("aria-expanded", String(!!mode)); $("kerr").textContent = "";
   if (!mode) return;
   $("keyh").textContent = date ? "Add your key's end date" : S.key ? "Renew your key" : "Connect your private results";
-  $("keyt").hidden = !!S.key || date; $("keyfind").hidden = !date;
+  $("keylab").textContent = S.key ? "New key" : "Key"; $("keyt").hidden = !!S.key || date; $("keyfind").hidden = !date;
   $("steps").hidden = $("kbox").hidden = $("keysave").hidden = date; $("datesave").hidden = !date;
   $("keyforget").hidden = date || !S.key; $("keyx").hidden = !S.key;
   $("kdate").value = dateField(mode);
