@@ -489,13 +489,11 @@ function dateLabel(iso, withYear) {
 /* STATUS-START: run-schedule lines in the status bar (tests/status.mjs checks it) */
 const manila = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3); // Asia/Manila is UTC+8, no DST
 const manilaISO = d => manila(d).toISOString().slice(0, 10);
-// The session the run was for is today; a status.json from before expected_date existed uses the day it ran
 const validTime = t => typeof t === "string" && !isNaN(Date.parse(t));
 const cleanIndex = v => Array.isArray(v) ? v.filter(e => e && typeof e === "object") : []; // a bad file or cache can't break the page
-const closedToday = (st, now = new Date()) => st.state === "holiday" &&
-  (st.expected_date || (validTime(st.attempted_at) ? manilaISO(new Date(st.attempted_at)) : null)) === manilaISO(now);
 // After 4:50pm Tue–Sat (the 7:50am backup's start plus 9 hours: GitHub has started it up to 7h39m late):
-// the previous weekday traded, has no final file, and status.json is not a 7:50am-backup attempt for it.
+// the previous weekday traded, has no final file, and status.json is not a 7:50am-backup attempt for it
+// (the 5:17am "early" run and a Run now never count, even for that session).
 // A Run now doesn't hide it, unless it saved the final file. st is null when there is no status.json;
 // one from before slot existed (no "slot" key), or with a malformed slot or expected_date, never warns.
 const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)) && new Date(d).toISOString().startsWith(d);
@@ -504,7 +502,7 @@ function missedRun(st, index, holidays, now = new Date()) {
   if (m.getUTCDay() < 2 || m.getUTCHours() * 60 + m.getUTCMinutes() < 16 * 60 + 50 || holidays.has(prev)) return false;
   if (index.some(e => e && e.date === prev && e.final === true)) return false;
   if (!st) return true;
-  if (!("slot" in st) || ![null, "evening", "morning"].includes(st.slot) || !isDay(st.expected_date)) return false;
+  if (!("slot" in st) || ![null, "evening", "early", "morning"].includes(st.slot) || !isDay(st.expected_date)) return false;
   return st.slot !== "morning" || st.expected_date !== prev;
 }
 // Only on fresh data: not a stale cache (the refresh decides) or a failed refresh, nor before anything has loaded
@@ -901,7 +899,6 @@ function renderBars() {
     const when = validTime(st.attempted_at) ? " (" + dateLabel(manilaISO(new Date(st.attempted_at))) + " " + timeLabel(st.attempted_at) + ")" : "";
     if (st.state === "failed") bar("err", "⚠ Last run failed" + when + ": " + (st.error || "unknown error") + ". Showing " + (S.date ? dateLabel(S.date) : "older") + " data. ", log);
     else if (st.state === "no_new_session") bar("", "⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log);
-    else if (closedToday(st)) bar("mute", "PSE closed today.");
   }
   if (S.missed = showMissed(S))
     bar("", "⚠ Scheduled run did not run this morning. Press Run now, or ",

@@ -52,10 +52,9 @@ anywhere, and **Forget key** leaves them in place. Shared links still carry the 
 ## Status bar
 
 Shown only when it needs your attention, from the private repository's `results/status.json`:
-a failed run, no new PSE session yet, or "PSE closed today." (when the run's session is a
-holiday today). After **4:50pm Tuesday to Saturday** it also says "Scheduled run did not run
+a failed run or no new PSE session yet. After **4:50pm Tuesday to Saturday** it also says "Scheduled run did not run
 this morning" when the previous weekday traded, has no final results file and the 7:50am backup
-has not run for it. The cutoff is the backup's start plus 9 hours, because GitHub starts
+has not run for it (the 5:17am run never counts as the backup). The cutoff is the backup's start plus 9 hours, because GitHub starts
 scheduled runs up to about 7h40m late. A Run now hides the line only if it saves the final file.
 Hidden while a CSV you opened is shown.
 
@@ -64,7 +63,7 @@ Hidden while a CSV you opened is shown.
 ```bash
 node tests/static.mjs                                  # size, exact CSP, no innerHTML, file allowlist, no data or tokens (CI runs this)
 node tests/screens.mjs                                 # saved sets: storage cleaning, name rules, panel summary (CI runs this)
-node tests/status.mjs                                  # status bar: missed-run and "PSE closed today." rules (CI runs this)
+node tests/status.mjs                                  # status bar: missed-run rule (CI runs this)
 node tests/history.mjs                                 # history file checks, Days in, streaks, Knocking, disagreement (CI runs this)
 node tests/parity.mjs ../pse-screener ../pse-screener/results/latest.csv
 ```
