@@ -53,6 +53,8 @@ for (const href of ["https://x/icon.png", "//x/icon.png", "icon.png?k=1"]) {
 }
 refuse("a script src", "EXT-LOAD", page("<script>", '<script src="app.js"></script>\n<script>'));
 refuse("an image before the CSP", "EXT-LOAD", page("<head>", '<head>\n<img src="https://github.com/favicon.ico">'));
+for (const tag of ['<link rel="stylesheet" href = "https://github.com/x.css">', '<script/src="app.js"></script>', '<img/src="https://github.com/favicon.ico">', '<base href="https://github.com/">'])
+  refuse("before the CSP: " + tag, "EXT-LOAD", page("<head>", "<head>\n" + tag));
 for (const tag of ['<iframe src="x.html"></iframe>', '<img srcset="a.png 2x">', '<video poster="p.png"></video>', '<object data="x.pdf"></object>'])
   refuse("a resource tag: " + tag, "EXT-LOAD", page("</body>", tag + "\n</body>"));
 refuse("a host in the page", "HOSTS", page('const OWNER = "', 'const EDGE = "https://edge.pse.com.ph";\nconst OWNER = "'));
