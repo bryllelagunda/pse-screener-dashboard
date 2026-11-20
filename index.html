@@ -49,6 +49,8 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted);font-weight:600}
 .bar{border-radius:10px;padding:10px 14px;margin-top:12px;border:1px solid #6b5a2b;background:#2a2619}
 .bar.err{border-color:#6e3632;background:#2b1d1d}
 .bar.mute{border-color:var(--line);background:var(--panel);color:var(--muted)}
+.bar.calm{border-color:var(--line);background:var(--panel)}
+.bar.warn{border-color:var(--warn)}
 .ctl{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px 24px;margin-top:12px}
 .ctl label{display:block}
 .lab{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
@@ -989,10 +991,10 @@ function renderBars() {
   if (dis) err("History disagrees with today's file for " + dis + " stock" + (dis === 1 ? "" : "s") + ". Trust today's file; the next run rebuilds the history.");
   if (S.fixtureBad) err("Dashboard logic disagrees with the screener's test cases (" + S.fixtureBad + " failing). Trust the screener's own pass lists until this is fixed.");
   const later = () => act("Later", () => keyLater(kb.band));
-  if (kb.band === "0") bar("calm", "", [said, renew()]);
-  if (kb.band === "3") bar("calm", "", [said, renew(), later()]);
-  if (kb.band === "14") bar("calm", "mute", [said, renew(), later()]);
-  if (kb.band === "nodate") bar("calm", "mute", [said, act("Add date", () => showKey("date")), later()]);
+  if (kb.band === "0") bar("calm", "warn", [said, renew()]);
+  if (kb.band === "3") bar("calm", "warn", [said, renew(), later()]);
+  if (kb.band === "14") bar("calm", "calm", [said, renew(), later()]);
+  if (kb.band === "nodate") bar("calm", "calm", [said, act("Add date", () => showKey("date")), later()]);
   if (st && st.state === "no_new_session") bar("calm", "", ["⚠ No new PSE session yet" + when + (st.data_date ? "; PSE EDGE's latest is " + dateLabel(st.data_date) : "") + ". ", log()]);
   if (S.missed = showMissed(S))
     bar("calm", "", ["⚠ Scheduled run did not run this morning. Press Run now, or ", el("a", {href: safeUrl(null), target: "_blank", rel: "noopener noreferrer", text: "open Actions"}), "."]);
