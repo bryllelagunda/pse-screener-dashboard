@@ -26,11 +26,13 @@ new or dropped since the compare date, and how many missed by one filter (prefix
 provisional, from a session before a holiday, or not today's). The second line is the **market mood**: the
 share of the whole scan above its 200-day average (weak under 35%, mixed to 65%, strong above), with the
 change since the compare date; under 50 stocks with that number it says there is not enough data. It
-describes the market; it is not a signal to buy or sell.
+describes the market; it is not a signal to buy or sell. The view chips and search sit under the summary,
+above the filters.
 
 Labels use plain words (Momentum, Daily swing, Company size, …). A **?** next to a label explains it
-(desktop: every label and column; phone: filters, chips and section titles). **What the words mean** in
-the footer lists every explanation at once; the texts live in one `TIPS` object in `index.html`.
+(desktop: filters, columns, chips, section titles and badges; phone: the same without the columns; the set
+row has one, after Strict). **What the words mean** in the footer lists every explanation at once, Loose
+and Custom included; the texts live in one `TIPS` object in `index.html`.
 
 ## Key reminders
 
