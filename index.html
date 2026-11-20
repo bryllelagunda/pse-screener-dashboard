@@ -1116,7 +1116,7 @@ function loadCache() {
 let running = false;
 async function runNow() {
   if (running) return;
-  if (!S.key) { showKey(true); return; }
+  if (!S.key) { showKey("key"); return; }
   running = true; $("run").disabled = true;
   const st = t => { $("runst").textContent = ""; $("runst").append(...[].concat(t)); };
   const link = (u, t) => el("a", {href: safeUrl(u), target: "_blank", rel: "noopener noreferrer", text: t});
