@@ -1018,14 +1018,20 @@ function renderAll() {
 class AuthError extends Error {}
 let gen = 0; // bumped when the key changes or a load starts, so a slower older load can't overwrite it
 async function gh(path, opts = {}) {
-  const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body, signal: AbortSignal.timeout(30e3), // a hung request can't hold "updating…"
+  const r = await fetch(API + path, {method: opts.method || "GET", cache: "no-store", body: opts.body, signal: opts.signal,
     headers: {Authorization: "Bearer " + S.key, Accept: opts.json ? "application/vnd.github+json" : "application/vnd.github.raw+json"}});
   const kind = authKind(r.status, r.headers);
   if (kind === "rate") throw new Error("GitHub rate limit reached; try again in a few minutes");
   if (kind === "auth") throw new AuthError();
   return r;
 }
-const fileText = async (path) => { const r = await gh("/contents/" + path); if (r.status === 404) return null; if (!r.ok) throw new Error(path + ": HTTP " + r.status); return r.text(); };
+// A file read gives up after 30 s, so a hung request can't hold "updating…" (Run now's calls keep no limit)
+const fileText = async (path) => {
+  const c = new AbortController(), t = setTimeout(() => c.abort(new Error(path + ": no answer in 30 seconds")), 30e3);
+  try { const r = await gh("/contents/" + path, {signal: c.signal}); if (r.status === 404) return null; if (!r.ok) throw new Error(path + ": HTTP " + r.status); return await r.text(); }
+  catch (e) { throw c.signal.aborted && c.signal.reason instanceof Error ? c.signal.reason : e; }
+  finally { clearTimeout(t); }
+};
 const csvDate = rows => (rows.find(r => r.data_date) || {}).data_date || null;
 function setCurrent(csv) {
   S.rows = parseCSV(csv);
