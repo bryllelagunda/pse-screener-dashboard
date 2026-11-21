@@ -37,7 +37,10 @@ const line = (C, o) => txt(summaryLine(C, day(o)));
 eq(line(Cx(3, 1, 2, 4)), "**Strict** today: **3 stocks pass**, 1 new and 2 dropped since Wed, Nov 18. 4 more missed by one filter.", "normal");
 eq(line(Cx(1, 1, 0, 0)), "**Strict** today: **1 stock passes**, new since Wed, Nov 18.", "one stock, new");
 eq(line(Cx(3, 0, 0, 0)), "**Strict** today: **3 stocks pass**, the same as Wed, Nov 18.", "nothing new or dropped");
-eq(line(Cx(0, 0, 1, 2)), "**Strict** today: **no stock passes.** 2 missed by one filter.", "empty day");
+eq(line(Cx(0, 0, 0, 2)), "**Strict** today: **no stock passes.** 2 missed by one filter.", "empty day");
+eq(line(Cx(0, 0, 1, 2)), "**Strict** today: **no stock passes**, 1 dropped since Wed, Nov 18. 2 missed by one filter.", "empty day says how many dropped (T-28)");
+eq(line(Cx(0, 0, 3, 0)), "**Strict** today: **no stock passes**, 3 dropped since Wed, Nov 18. None missed by one filter.", "empty day, dropped, none missed");
+eq(line(Cx(0, 0, 2, 0, false)), "**Strict** today: **no stock passes**, and none missed by one filter. Quiet days like this are normal.", "no compare date: no dropped count");
 eq(line(Cx(0, 0, 0, 0)), "**Strict** today: **no stock passes**, and none missed by one filter. Quiet days like this are normal.", "empty, none missed");
 eq(line(Cx(7, 0, 0, 3, false), {name: "Loose"}), "**Loose** today: **7 stocks pass**. 3 missed by one filter. Pick a date in Compare with… to see what's new.", "no compare date");
 // Prefixes: one at most, provisional, then holiday, then not today's
@@ -45,6 +48,9 @@ const hol = {date: "2026-11-27", holidays: new Set(["2026-11-30"]), now: at("202
 eq(line(Cx(3, 0, 0, 0), hol), "PSE was closed Mon, Nov 30 (holiday). Latest session, Fri, Nov 27: **Strict**: **3 stocks pass**, the same as Wed, Nov 18.", "holiday");
 eq(line(Cx(3, 0, 0, 0), {...hol, status: {state: "no_new_session"}}), line(Cx(3, 0, 0, 0), hol), "holiday + no new session: the holiday prefix only");
 eq(line(Cx(3, 0, 0, 0), {...hol, missed: true}), line(Cx(3, 0, 0, 0), hol), "holiday + missed run: the holiday prefix only");
+eq(line(Cx(3, 0, 0, 0), {date: "2026-11-26", holidays: new Set(["2026-11-27"]), now: at("2026-11-30T19:00"), status: {state: "failed", expected_date: "2026-11-30"}}).startsWith("From Thu, Nov 26 (not today's): "), true, "a run after the holiday failed: not today's, not the holiday (T-28)");
+eq(line(Cx(3, 0, 0, 0), {date: "2026-11-26", holidays: new Set(["2026-11-27"]), now: at("2026-11-30T09:00"), status: {state: "failed", expected_date: "2026-11-27"}}).startsWith("PSE was closed Fri, Nov 27"), true, "a failed run for the holiday itself: the holiday prefix");
+eq(line(Cx(3, 0, 0, 0), {date: "2026-11-17", picked: true, status: {state: "failed"}}), "Tue, Nov 17, an earlier day: **Strict**: **3 stocks pass**, the same as Wed, Nov 18.", "a picked earlier day names itself, no other prefix");
 eq(line(Cx(3, 0, 0, 0), {date: "2026-11-18", status: {state: "no_new_session"}}), "From Wed, Nov 18 (not today's): **Strict**: **3 stocks pass**, the same as Wed, Nov 18.", "stale: no new session");
 eq(line(Cx(3, 0, 0, 0), {status: {state: "failed"}}).startsWith("From Thu, Nov 19 (not today's): "), true, "stale: run failed");
 eq(line(Cx(3, 0, 0, 0), {missed: true}).startsWith("From Thu, Nov 19 (not today's): "), true, "stale: missed-run line on");

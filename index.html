@@ -51,6 +51,7 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted);font-weight:600}
 .bar.mute{border-color:var(--line);background:var(--panel);color:var(--muted)}
 .bar.calm{border-color:var(--line);background:var(--panel)}
 .bar.warn{border-color:var(--warn)}
+.bar.info{border-color:var(--accent);background:#18222f}
 .ctl{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px 24px;margin-top:12px}
 .ctl label{display:block}
 .lab{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
@@ -65,7 +66,7 @@ input[type=range]{width:100%;height:44px;margin:4px 0 0;accent-color:var(--accen
 .chips b{margin-right:4px}
 table{width:100%;border-collapse:collapse}
 th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
+th:first-child,td:first-child,#tbl th:nth-child(2),#tbl td:nth-child(2){text-align:left}
 thead th{position:sticky;top:var(--hh);background:var(--panel);z-index:2;font-size:12px;font-weight:600;color:var(--muted);padding:0}
 thead th button{all:unset;display:block;width:100%;box-sizing:border-box;min-height:44px;padding:14px 6px;cursor:pointer;text-align:inherit}
 thead th button:focus-visible{outline:2px solid var(--accent)}
@@ -82,8 +83,15 @@ tr.dim td{color:var(--muted)}
 .list td.go{width:24px;color:var(--muted);text-align:right}
 .list td.sub{font-size:12px;color:var(--muted);height:auto;padding-top:10px}
 .menuw{position:relative}
-#menu{position:absolute;right:0;top:48px;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:200px}
-#menu button{display:block;width:100%;text-align:left;border:0;background:none}#menu button:hover{background:#262b35}
+#menu,#days{position:absolute;right:0;top:48px;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:200px}
+#menu button,#days button{display:block;width:100%;text-align:left;border:0;background:none}#menu button:hover,#days button:hover{background:#262b35}
+#days{right:auto;left:0;top:100%;max-height:60vh;overflow:auto;box-shadow:0 8px 24px #0008}#days button[aria-current=true]{background:var(--accent);color:#0d1420;font-weight:600}
+#daybtn{all:unset;cursor:pointer;font-weight:700;color:var(--text);text-decoration:underline dashed var(--muted);text-underline-offset:4px;padding:12px 0}#daybtn:focus-visible{outline:2px solid var(--accent)}
+.st{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:34px;height:44px;font-size:20px;line-height:1;color:var(--muted);cursor:pointer}.st.on{color:var(--warn)}.st:focus-visible{outline:2px solid var(--accent)}
+#tbl td.stc{width:34px;padding:0}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;border:1px solid}.tag.cut{border-color:var(--down);color:var(--down);background:#2a1d1f}.tag.target{border-color:var(--up);color:var(--up);background:#1a2a22}.tag.gone{border-color:var(--line);color:var(--muted)}
+td .nm.ph{display:none}
+.nt{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.nt .field{margin-top:0}#spm input{width:100%}input.bad{border-color:var(--down)}
 #scrim{position:fixed;inset:0;z-index:20;background:rgba(10,12,16,.55)}
 #sp{position:fixed;top:0;right:0;bottom:0;z-index:21;width:420px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:0 16px 24px}
 #sp .top{position:sticky;top:0;z-index:2;background:var(--panel);display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:14px 0 10px;border-bottom:1px solid var(--line)}
@@ -140,7 +148,7 @@ th .q{width:20px;height:20px;margin-left:2px;font-size:11px}th .q::after{inset:-
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 thead th{vertical-align:bottom}
 thead th .th{display:flex;align-items:center;justify-content:flex-end}
-thead th:first-child .th{justify-content:flex-start}
+thead th:first-child .th,#tbl th:nth-child(2) .th{justify-content:flex-start}
 thead th .th button:first-child{width:auto;white-space:normal}
 .sum p{margin:0}.sum p+p{margin-top:6px;color:var(--muted)}.sum b.n{font-size:17px}.sum.res{min-height:76px}
 .steps{margin:8px 0 0;padding-left:20px}.steps li{margin:4px 0}
@@ -165,15 +173,17 @@ thead th .th button:first-child{width:auto;white-space:normal}
  #q{width:100%}
  #sp{width:100%;border-left:0}
  #scrim{display:none}
+ td .nm.ph{display:block}td .nm.x{display:none}
 }
 @media (max-width:379px){th{white-space:normal}}
 </style>
 </head>
 <body>
 <header><div class="wrap">
- <div>
+ <div class="menuw">
   <h1>PSE Screener</h1>
   <div id="hdr" class="small muted">No data loaded</div>
+  <div id="days" role="menu" aria-label="Pick a day" hidden></div>
  </div>
  <div class="row">
   <button id="run" type="button" title="Run the screener now (r)">Run now</button>
@@ -248,14 +258,16 @@ thead th .th button:first-child{width:auto;white-space:normal}
  </section>
  <section class="panel" style="padding:0 8px 4px">
   <div id="tnote" class="small muted" style="padding:10px 6px 0" hidden></div>
+  <div id="mymsg" class="small why" role="alert" style="padding:0 6px"></div>
   <table id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tb"></tbody></table>
   <div id="tblempty" class="empty" hidden></div>
+  <p id="mynote" class="small muted" style="margin:8px 6px" hidden>Saved in this browser only. Your phone and computer keep separate lists.</p>
  </section>
  <section class="panel data"><h2>Missed by one filter <span class="small muted">(watchlist candidates)</span><button class="q" data-tip="missed by one filter"></button></h2><table class="list"><tbody id="missed"></tbody></table></section>
  <section class="panel data" id="knp" hidden><h2>Knocking on the door <span class="small muted">(missed by one rule, 3+ sessions running)</span><button class="q" data-tip="Knocking on the door"></button></h2><table class="list"><tbody id="knock"></tbody></table></section>
  <section class="panel data"><h2 id="droph">Dropped</h2><table class="list"><tbody id="dropped"></tbody></table></section>
  <section class="panel data"><details><summary><h2 id="nsh" style="margin:0">Not scanned today (0)</h2></summary><table class="list"><tbody id="ns"></tbody></table></details></section>
- <p class="small muted">Prices are read from your private repository with your key. This page stores nothing on any server; your key and a copy of the latest results stay in this browser. <a href="#" id="wordsgo">What the words mean</a></p>
+ <p class="small muted">Prices are read from your private repository with your key. This page stores nothing on any server; your key, My list and a copy of the latest results stay in this browser. <a href="#" id="wordsgo">What the words mean</a></p>
  <section id="words" class="panel words" hidden>
   <div class="row ph2"><h2 style="margin:0">What the words mean</h2><button id="wordsx" type="button">Close</button></div>
   <dl id="wordsl"></dl>
@@ -265,6 +277,20 @@ thead th .th button:first-child{width:auto;white-space:normal}
 <div id="tip" role="tooltip" hidden></div><div id="tipsr" class="sr" role="status"></div>
 <aside id="sp" role="dialog" aria-modal="true" aria-labelledby="sps" tabindex="-1" hidden>
  <div class="top"><div><div id="sps"></div><div id="spn" class="small muted"></div></div><button id="spx" type="button" aria-label="Close">✕</button></div>
+ <div id="spsr" class="sr" role="status"></div>
+ <div id="spm">
+  <div class="row" style="margin-top:12px"><button id="spstar" type="button"></button></div>
+  <h3>My notes</h3>
+  <div class="nt">
+   <div class="field"><label for="nbuy">My buy price ₱</label><input id="nbuy" type="text" inputmode="decimal" autocomplete="off"></div>
+   <div class="field"><label for="ncut">Cut-loss ₱</label><input id="ncut" type="text" inputmode="decimal" autocomplete="off"></div>
+   <div class="field"><label for="ntgt">Target ₱</label><input id="ntgt" type="text" inputmode="decimal" autocomplete="off"></div>
+  </div>
+  <div class="field"><label for="nnote">Note</label><input id="nnote" type="text" maxlength="300" autocomplete="off"></div>
+  <div id="nerr" class="small why" role="alert" style="margin-top:6px"></div>
+  <div class="row" style="margin-top:10px"><button id="nsave" class="primary" type="button">Save notes</button><button id="nclear" type="button">Clear notes</button><span id="nat" class="small muted"></span></div>
+  <p id="nlvl" class="small muted" style="margin:12px 0 0" hidden></p>
+ </div>
  <div id="spb"></div>
 </aside>
 <script>
@@ -573,17 +599,20 @@ function closedSince(date, holidays, now) {
   }
   return last;
 }
-// One prefix at most, in this order: provisional, holiday, then not today's session
+// One prefix at most, in this order: a picked earlier day, provisional, holiday, then not today's session
+// (a failed or empty run for a session after the holiday wins over the holiday)
 function dayPrefix(s) {
+  if (s.picked) return dateLabel(s.date) + ", an earlier day: ";
   if (s.provisional) return "Provisional (during trading): ";
-  const h = closedSince(s.date, s.holidays, s.now);
-  if (h) return "PSE was closed " + dateLabel(h) + " (holiday). Latest session, " + dateLabel(s.date) + ": ";
-  const st = s.status && s.status.state;
-  return st === "no_new_session" || st === "failed" || s.missed ? "From " + dateLabel(s.date) + " (not today's): " : "";
+  const h = closedSince(s.date, s.holidays, s.now), st = s.status && s.status.state, bad = st === "no_new_session" || st === "failed";
+  if (h && !(bad && isDay(s.status.expected_date) && s.status.expected_date > h)) return "PSE was closed " + dateLabel(h) + " (holiday). Latest session, " + dateLabel(s.date) + ": ";
+  return bad || s.missed ? "From " + dateLabel(s.date) + " (not today's): " : "";
 }
 // c: counts {pass, isNew, dropped, missed}, cmp: the compare date's label or null
 function countsText(name, prefixed, c, cmp) {
   const out = [{b: name}, prefixed ? ": " : " today: "], m = c.missed;
+  const d = cmp && c.dropped ? ", " + c.dropped + " dropped since " + cmp + "." : "";
+  if (!c.pass && d) return out.concat({b: "no stock passes", n: 1}, d + (m ? " " + m + " missed by one filter." : " None missed by one filter."));
   if (!c.pass) return out.concat(m ? [{b: "no stock passes.", n: 1}, " " + m + " missed by one filter."]
     : [{b: "no stock passes", n: 1}, ", and none missed by one filter. Quiet days like this are normal."]);
   out.push({b: plural(c.pass, "stock passes", "stocks pass"), n: 1});
@@ -646,6 +675,11 @@ const TIPS = {
   "Knocking on the door": "Missed by one rule 3 or more trading days running.",
   "BOTH": "On Strict and Loose today.",
   "Provisional": "Taken during trading hours; the final numbers come after the close.",
+  "My buy": "The price you bought at, from your notes.",
+  "vs my buy": "Change from your buy price to this day's close.",
+  "Cut-loss": "The price at which you plan to sell to limit a loss, from your notes.",
+  "Target": "The price at which you plan to take profit, from your notes.",
+  "Passes": "Which filter set this stock passes on this day.",
   "Market mood": "How many stocks are above their 200-day average: a rough read of the whole market's long-term trend. Not a signal to buy or sell.",
 };
 /* TIPS-END */
@@ -701,6 +735,102 @@ function forgetKey() {
   showKey("key"); renderAll();
 }
 /* KEY-END */
+/* MYLIST-START: My list stars and notes, kept in this browser only under pse.mine (tests/screens.mjs checks it) */
+const MAX_MINE = 300, MAX_NOTE = 300, NOSAVE = "Couldn't save in this browser (storage full or private mode).", PRICES = ["buy", "cut", "target"];
+const okPrice = v => typeof v === "number" && Number.isFinite(v) && v > 0;
+// A price typed in a notes box: null when empty, NaN when 0, below 0 or not a number
+function priceIn(t) {
+  t = String(t).trim().replace(/[₱,\s]/g, "");
+  return !t ? null : /^(\d+\.?\d*|\.\d+)$/.test(t) && +t > 0 ? +t : NaN;
+}
+const hasNotes = e => PRICES.some(k => e[k] !== null) || !!e.note;
+// The list read from storage: bad entries dropped, one per stock, at most MAX_MINE
+function cleanMine(raw) {
+  const out = [];
+  for (const x of Array.isArray(raw) ? raw : []) {
+    if (out.length >= MAX_MINE) break;
+    if (!x || typeof x !== "object" || typeof x.sym !== "string" || !/^[A-Z0-9][A-Z0-9.-]{0,11}$/.test(x.sym) || out.some(o => o.sym === x.sym)) continue;
+    const e = {sym: x.sym, star: x.star === true, note: typeof x.note === "string" ? x.note.slice(0, MAX_NOTE) : "",
+      at: typeof x.at === "string" && !isNaN(Date.parse(x.at)) ? x.at : null};
+    for (const k of PRICES) e[k] = okPrice(x[k]) ? x[k] : null;
+    if (e.star || hasNotes(e)) out.push(e);
+  }
+  return out;
+}
+// The list with one stock changed (ch: {star} or notes); a stock with no star and no notes leaves it
+function mineWith(list, sym, ch) {
+  const i = list.findIndex(e => e.sym === sym), e = {sym, star: false, buy: null, cut: null, target: null, note: "", at: null, ...list[i], ...ch};
+  if (!e.star && !hasNotes(e)) return list.filter(o => o.sym !== sym);
+  return i < 0 ? [...list, e] : list.map((o, j) => j === i ? e : o);
+}
+const mineErr = (list, sym) => !list.some(e => e.sym === sym) && list.length >= MAX_MINE ? "My list keeps " + MAX_MINE + " stocks. Remove one first." : "";
+// The note boxes' text: the three prices and the note, or {bad: [the refused boxes]}
+function readNotes(f) {
+  const out = {note: String(f.note || "").trim().slice(0, MAX_NOTE)}, bad = PRICES.filter(k => Number.isNaN(out[k] = priceIn(f[k] || "")));
+  return bad.length ? {bad} : out;
+}
+const p2 = x => x.toFixed(x < 1 ? 4 : 2);
+const priceMsg = close => "Enter a price above 0" + (okPrice(close) ? ", like " + p2(close) : "") + ".";
+// One stock on the shown day: its close (null when not in the file or no close), the change from the buy price in %, and its tag
+function myView(e, r) {
+  const close = r && !r.ghost && okPrice(r.close) ? r.close : null;
+  return {close, vs: close !== null && okPrice(e.buy) ? (close / e.buy - 1) * 100 : null,
+    tag: close === null ? "gone" : okPrice(e.cut) && close <= e.cut ? "cut" : okPrice(e.target) && close >= e.target ? "target" : ""};
+}
+const TAG = {gone: "Not in this day's scan", cut: "At cut-loss", target: "Target reached"};
+function levelLine(e, close) {
+  const t = myView(e, {close}).tag;
+  return t === "cut" ? "Price is at or below your cut-loss (₱" + p2(e.cut) + ")." : t === "target" ? "Price is at or above your target (₱" + p2(e.target) + ")." : "";
+}
+let MINE = cleanMine(store.get("mine", []));
+// Saves the whole list; false (and nothing changed) when storage is full or off
+function saveMine(list) { if (!store.set("mine", list)) return false; MINE = list; return true; }
+const mineOf = sym => MINE.find(e => e.sym === sym) || null;
+const starred = () => MINE.filter(e => e.star);
+/* MYLIST-END */
+/* DAY-START: Pick a day: an earlier results file on screen, the latest one kept aside (tests/screens.mjs checks it) */
+const DAYF = ["rows", "date", "meta", "parity", "cmpRows", "cmpDate"];
+const fields = () => Object.fromEntries(DAYF.map(k => [k, S[k]]));
+let LATEST = null, dgen = 0; // LATEST: the latest file's fields while an earlier day is shown; each pick or return bumps dgen
+const latestDate = () => LATEST ? LATEST.date : S.date;
+// Every saved day, newest first, once each
+function dayList(index, latest) {
+  const m = new Map();
+  for (const e of index) if (isDay(e.date) && !m.has(e.date)) m.set(e.date, e);
+  if (isDay(latest) && !m.has(latest)) m.set(latest, {date: latest});
+  return [...m.values()].sort((a, b) => a.date < b.date ? 1 : -1).map(e => ({date: e.date, latest: e.date === latest, prov: e.final === false}));
+}
+// f writes the latest file's fields (a refresh); a picked day stays on screen
+function onLatest(f) {
+  if (!LATEST) return f();
+  const pick = fields(); Object.assign(S, LATEST);
+  try { return f(); } finally { LATEST = fields(); Object.assign(S, pick); S.meta = S.index.find(e => e.date === S.date) || null; }
+}
+function backToLatest() { dgen++; S.dayMsg = null; if (LATEST) { Object.assign(S, LATEST); LATEST = null; } }
+const dropDay = () => { if (!S.key && LATEST) { LATEST = S.dayMsg = null; dgen++; } }; // after Forget key: the old latest is gone too
+// Loads results/<d>.csv and its compare day (the last final day before it); a failure keeps the latest on screen
+async function pickDay(d) {
+  if (d === latestDate()) { backToLatest(); return renderAll(); }
+  if (LATEST && d === S.date) return;
+  const my = ++dgen, get = f => fileText("results/" + f + ".csv");
+  S.dayMsg = {wait: d}; renderBars();
+  try {
+    const csv = await get(d);
+    if (my !== dgen) return;
+    if (!csv) throw new Error("no file for that day");
+    const cd = S.index.filter(e => e.final === true && isDay(e.date) && e.date < d).map(e => e.date).sort().pop() || null;
+    const ccsv = cd ? await get(cd).catch(e => { if (e instanceof AuthError) S.authErr = true; return null; }) : null;
+    if (my !== dgen) return;
+    if (!LATEST) LATEST = fields();
+    setCurrent(csv); setCompare(ccsv, cd); S.dayMsg = null;
+  } catch (e) {
+    if (my !== dgen) return;
+    if (e instanceof AuthError) S.authErr = true;
+    backToLatest(); S.dayMsg = {fail: d, why: e instanceof AuthError ? "GitHub didn't accept the key" : e.message || "no answer"};
+  }
+  renderAll();
+}
+/* DAY-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
 const safeUrl = u => typeof u === "string" && /^https:\/\/github\.com\//.test(u) ? u : "https://github.com/" + OWNER + "/" + REPO + "/actions";
 
@@ -942,7 +1072,9 @@ function info(sym, row) { const t = track(H, sym, row, S.date); return {t, stric
 const daysOf = r => { const i = H.state === "ok" && PRESETS[S.preset] && (tracks().m.get(r.symbol) || info(r.symbol, null)); return i ? i[S.preset].days : null; };
 
 // ------------------------------------------------------------------ render
+const starTd = (r, x) => el("td", {cls: "stc" + (x ? " x" : "")}, starBtn(r.symbol));
 const COLS = [
+  {k: "star", t: "", td: r => starTd(r)},
   {k: "symbol", t: "Stock", hl: 1},
   {k: "days", t: "Days on list", hl: 1, v: daysOf, f: r => daysText(H, S.preset, daysOf(r))},
   {k: "cci20", t: "Momentum", hl: 1, f: r => r.cci20 === null ? "—" : r.cci20.toFixed(1)},
@@ -957,10 +1089,27 @@ const COLS = [
   {k: "mcap", t: "Company size", x: 1, f: r => money(r.mcap)},
   {k: "avg_value_30d", t: "Usual daily trading", x: 1, f: r => money(r.avg_value_30d)},
 ];
+// My list: phone shows Stock (with the buy price), Price, vs my buy and the tag; the computer adds the rest
+const mv = r => myView(mineOf(r.symbol) || {}, r), own = k => r => (mineOf(r.symbol) || {})[k] ?? null;
+const passWord = r => { if (r.ghost || r.fetch_error) return "—"; const [a, b] = ["strict", "loose"].map(p => !failures(r, PRESETS[p], S.date).length); return a && b ? "Strict, Loose" : a ? "Strict" : b ? "Loose" : "none"; };
+const MYCOLS = [
+  {k: "star", t: "", td: r => starTd(r, 1)},
+  {k: "symbol", t: "Stock", hl: 1, td: r => { const b = own("buy")(r); return el("td", {cls: "hl"}, r.symbol, el("span", {cls: "nm x", text: r.name || ""}), el("span", {cls: "nm ph", text: b ? "buy " + price(b) : "no buy price"})); }},
+  {k: "close", t: "Price ₱", v: r => mv(r).close, f: r => price(mv(r).close)},
+  {k: "chg_pct", t: "Today %", x: 1, f: r => spct(r.chg_pct, 2), c: 1},
+  {k: "buy", t: "My buy", x: 1, own: 1, v: own("buy"), f: r => price(own("buy")(r))},
+  {k: "vs", t: "vs my buy", v: r => mv(r).vs, f: r => spct(mv(r).vs), c: 1},
+  {k: "cut", t: "Cut-loss", x: 1, own: 1, v: own("cut"), f: r => price(own("cut")(r))},
+  {k: "target", t: "Target", x: 1, own: 1, v: own("target"), f: r => price(own("target")(r))},
+  {k: "passes", t: "Passes", x: 1, v: passWord, td: r => { const w = passWord(r); return el("td", {cls: "x" + (w === "none" ? " muted" : "")}, w); }},
+  {k: "tag", t: "", td: r => { const t = mv(r).tag; return el("td", null, t ? el("span", {cls: "tag " + t, text: TAG[t]}) : null); }},
+];
+const mineView = () => S.view === "mine" && !S.q.trim(), cols = () => mineView() ? MYCOLS : COLS;
 function renderHead() {
-  const tr = $("thr"); if (tipOn && tr.contains(tipOn)) tipClose();
+  const tr = $("thr");
   tr.textContent = "";
-  for (const c of COLS) {
+  for (const c of cols()) {
+    if (!c.t) { tr.append(el("th", {cls: c.td && c.k === "star" && cols() === MYCOLS ? "x" : null}, el("span", {cls: "sr", text: c.k === "star" ? "My list" : "Alert"}))); continue; }
     const on = S.sort.k === c.k;
     const th = el("th", {cls: (c.hl ? "hl " : "") + (c.x ? "x" : ""), "aria-sort": on ? (S.sort.dir < 0 ? "descending" : "ascending") : "none"},
       el("div", {cls: "th"}, el("button", {type: "button", text: c.t + (on ? (S.sort.dir < 0 ? " ▼" : " ▲") : ""), onclick: () => {
@@ -976,15 +1125,17 @@ function slBadge(r) { // muted without history
 }
 const WORD = {p: "on", m: "missed by one rule", n: "off", o: "no record"};
 function cell(c, r) {
+  if (c.td) return c.td(r);
   if (c.k === "symbol") {
     return el("td", {cls: "hl"}, r.symbol, C.isNew.has(r.symbol) ? el("span", {cls: "badge", text: "NEW"}) : null,
       S.q.trim() ? slBadge(r) : r.pass_strict && r.pass_loose ? el("span", {cls: "badge both", text: "BOTH"}) : null, el("span", {cls: "nm", text: r.name || ""}));
   }
-  const v = r[c.k];
-  return el("td", {cls: (c.hl ? "hl " : "") + (c.x ? "x " : "") + (c.c && v ? (v > 0 ? "up" : "down") : "")}, r.ghost && c.k !== "days" ? "—" : c.f(r));
+  const v = c.v && c.c ? c.v(r) : r[c.k];
+  return el("td", {cls: (c.hl ? "hl " : "") + (c.x ? "x " : "") + (c.c && v ? (v > 0 ? "up" : "down") : "")}, r.ghost && !c.own && c.k !== "days" ? "—" : c.f(r));
 }
 function tableRows() {
-  let rs = S.view === "new" ? C.pass.filter(r => C.isNew.has(r.symbol))
+  let rs = S.view === "mine" ? starred().map(e => S.rows.find(r => r.symbol === e.sym) || ghost(e.sym, null))
+    : S.view === "new" ? C.pass.filter(r => C.isNew.has(r.symbol))
     : S.view === "dropped" ? C.dropped.map(e => e.r) : S.view === "missed" ? C.missed.map(e => e.r) : C.pass;
   const q = S.q.trim().toLowerCase();
   if (q) { // every stock in the shown file, plus symbols only in history
@@ -992,17 +1143,18 @@ function tableRows() {
     const have = new Set(S.rows.map(r => r.symbol));
     if (H.by) for (const sym of H.by.keys()) if (!have.has(sym) && sym.toLowerCase().includes(q)) rs.push(ghost(sym, null));
   }
-  const {k, dir} = S.sort, g = (COLS.find(c => c.k === k) || {}).v || (r => r[k]);
+  const cs = cols(), col = cs.find(c => c.k === k && c.t), mine = cs === MYCOLS && !col; // My list without a sort column: A to Z
+  const g = mine ? r => r.symbol : col && col.v || (r => r[k]), d = mine ? 1 : dir;
   return rs.map(r => [r, g(r)]).sort(([, x], [, y]) => {
     x = x === undefined ? null : x; y = y === undefined ? null : y;
     if (x === null || y === null) return x === null ? (y === null ? 0 : 1) : -1; // empty last
-    return (typeof x === "string" ? x.localeCompare(y) : x - y) * dir;
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * d;
   }).map(([r]) => r);
 }
 function opener(tr, sym) { // opens the stock panel
   tr.dataset.sym = sym; tr.tabIndex = 0;
   tr.addEventListener("click", () => openPanel(sym, tr));
-  tr.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPanel(sym, tr); } });
+  tr.addEventListener("keydown", e => { if (e.target === tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openPanel(sym, tr); } });
   return tr;
 }
 function render() {
@@ -1011,7 +1163,7 @@ function render() {
   const tb = $("tb"), frag = document.createDocumentFragment(), rs = tableRows(), q = S.q.trim();
   for (const r of rs) {
     const tr = opener(el("tr", {cls: "main" + (q && !C.pset.has(r.symbol) ? " dim" : "")}), r.symbol);
-    for (const c of COLS) tr.append(cell(c, r));
+    for (const c of cols()) tr.append(cell(c, r));
     frag.append(tr);
   }
   tb.textContent = ""; tb.append(frag);
@@ -1020,17 +1172,20 @@ function render() {
   $("tnote").hidden = !note; $("tnote").textContent = note;
   const empty = $("tblempty");
   empty.hidden = rs.length > 0;
+  $("mynote").hidden = !mineView();
   if (!rs.length) empty.textContent = S.q ? "No stocks match “" + S.q + "”. Clear the search."
+    : S.view === "mine" ? "My list is empty. Tap ☆ at the start of a row to add a stock."
     : S.view === "pass" ? "No stocks pass. Loosen a slider or switch to Loose."
     : S.view === "new" ? "No new stocks since the compare date." : S.view === "dropped" ? "Nothing dropped." : "No stocks missed by exactly one filter.";
 
   const since = C.hasCmp ? " since " + dateLabel(S.cmpDate) : "";
   const chips = $("chips"); chips.textContent = "";
   for (const [v, n, t] of [["pass", C.pass.length, "pass"], ["new", C.hasCmp ? C.isNew.size : "—", "new" + since],
-    ["dropped", C.hasCmp ? C.dropped.length : "—", "dropped" + since], ["missed", C.missed.length, "missed by one filter"]])
+    ["dropped", C.hasCmp ? C.dropped.length : "—", "dropped" + since], ["missed", C.missed.length, "missed by one filter"], ["mine", "★ " + starred().length, "My list"]]) {
     chips.append(el("button", {type: "button", "aria-pressed": String(S.view === v), disabled: n === "—" ? "" : null,
       onclick: () => { S.view = S.view === v && v !== "pass" ? "pass" : v; render(); }}, el("b", {text: n}), t));
-  chips.append(tipBtn("missed by one filter"));
+    if (v === "missed") chips.append(tipBtn("missed by one filter"));
+  }
   renderSummary();
 
   const lst = (id, items, emptyText, why, keep, cls = "why") => {
@@ -1060,7 +1215,7 @@ function render() {
   renderPanel(); tipGone();
 }
 function renderEmpty() {
-  $("thr").textContent = ""; $("tb").textContent = ""; $("chips").textContent = ""; $("tnote").hidden = $("knp").hidden = true;
+  $("thr").textContent = ""; $("tb").textContent = ""; $("chips").textContent = ""; $("tnote").hidden = $("knp").hidden = $("mynote").hidden = true;
   for (const id of ["missed", "dropped", "ns"]) $(id).textContent = "";
   $("tblempty").hidden = false;
   $("tblempty").textContent = S.msg || (S.key ? "Loading results…" : "Paste your key above to see your results.");
@@ -1073,16 +1228,21 @@ function renderSummary() {
   if (!S.rows || !C) return;
   const cmp = C.hasCmp ? dateLabel(S.cmpDate) : null;
   $("sum1").append(...summaryLine(C, {name: activeName(), date: S.date, provisional: !!(S.meta && S.meta.final === false), status: S.status,
-    holidays: S.holidays, missed: S.missed, now: new Date(), cmp}).map(part));
+    holidays: S.holidays, missed: S.missed, now: new Date(), cmp, picked: !!LATEST}).map(part));
   $("sum2").append(...moodLine(mood(S.rows, S.cmpRows), cmp).map(part), tipBtn("Market mood"));
   tipGone();
 }
+// The header date: a button listing every saved day when there is more than one
+const DB = el("button", {type: "button", id: "daybtn", "aria-haspopup": "menu", "aria-expanded": "false", "aria-controls": "days"});
+const dayLabel = d => dateLabel(d, String(d).slice(0, 4) !== String(latestDate()).slice(0, 4)); // the year only when it differs from the latest's
 function renderHeader() {
-  const h = $("hdr"); if (tipOn && h.contains(tipOn)) tipClose();
+  const h = $("hdr"), f = document.activeElement === DB;
   h.textContent = "";
-  if (!S.rows) { h.textContent = !S.key ? "No data loaded" : S.msg ? "No data yet" : "Loading…"; return; } // S.msg means loading has finished with nothing to show
+  if (!S.rows) { h.textContent = !S.key ? "No data loaded" : S.msg ? "No data yet" : "Loading…"; tipGone(); return; } // S.msg means loading has finished with nothing to show
   const m = S.meta;
-  h.append("Data as of ", el("b", {text: dateLabel(S.date, true)}), " close");
+  DB.textContent = dayLabel(S.date) + " ▾"; DB.setAttribute("aria-label", dayLabel(S.date) + ", pick a day");
+  h.append("Data as of ", dayList(S.index, latestDate()).length > 1 ? DB : el("b", {text: dateLabel(S.date, true)}), " close");
+  if (f && DB.isConnected) DB.focus();
   if (m && m.final === false) h.append(el("span", {cls: "badge warn", text: "Provisional"}), tipBtn("Provisional"));
   const bits = [];
   if (m && m.finished_at) bits.push("fetched " + timeLabel(m.finished_at));
@@ -1091,13 +1251,17 @@ function renderHeader() {
   if (S.loading && !S.cached) bits.push("updating…");
   else if (S.updated) bits.push((S.cached ? "cached, updating… " : "updated ") + new Date(S.updated).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}));
   h.append(" · " + bits.join(" · "));
+  tipGone();
 }
 function bar(box, cls, kids) { $(box).append(el("div", {cls: "bar fade " + cls}, ...kids)); }
 const act = (text, f) => el("a", {href: "#", text, onclick: e => { e.preventDefault(); f(); }});
 // Error bars above the summary (#bars), calm bars below it (#calm). Only the refused / ran-out bar is announced, once (#keylive).
 function renderBars() {
   $("bars").textContent = ""; $("calm").textContent = "";
-  const err = (...k) => bar("bars", "err", k), kb = keyBar(), renew = () => act("How to renew", () => showKey("key"));
+  const err = (...k) => bar("bars", "err", k), kb = keyBar(), renew = () => act("How to renew", () => showKey("key")), dm = S.dayMsg;
+  if (LATEST) bar("bars", "info", ["Showing ", el("b", {text: dayLabel(S.date)}), ", an earlier day.", act("Back to latest", () => { backToLatest(); renderAll(); DB.focus(); })]);
+  if (dm && dm.wait) bar("bars", "mute", ["Loading " + dayLabel(dm.wait) + "…"]);
+  if (dm && dm.fail) bar("bars", "", ["Couldn't load " + dayLabel(dm.fail) + " (" + dm.why + "). Showing the latest day."]);
   const said = kb.band && bandText(kb.band, kb.days, dateLabel(kb.exp), standalone()) + " ";
   if (kb.band === "out" || kb.band === "refused") { bar("bars", "err", [said, renew()]); if (!S.keyBarShown) $("keylive").textContent = said; S.keyBarShown = true; }
   else { $("keylive").textContent = ""; S.keyBarShown = false; } // the next refusal is announced again
@@ -1129,6 +1293,7 @@ function renderCompare() {
 }
 function update() { syncControls(); settingsToURL(); compute(); render(); }
 function renderAll() {
+  dropDay();
   if (S.herr && H.state === "ok" && S.rows && behind(H, S.index, S.date)) H = {state: "broken", err: S.herr + "; the saved copy is out of date"};
   document.body.classList.toggle("nokey", !S.key && !S.rows); // the first screen: the key panel, one line, the footer
   renderHeader(); renderBars(); renderCompare(); if (S.rows) compute(); render();
@@ -1206,15 +1371,13 @@ async function loadRemote() {
     S.holidays = new Set(hol ? parseCSV(hol).map(r => r.date) : []);
     if (!csv && !idx && !hol) { S.noAccess = true; if (!S.rows) S.msg = "This key can't see " + REPO + ". Paste a key with access to it."; return; } // a key without access to the repo gets 404s
     if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; return; }
-    setCurrent(csv);
+    const cd = onLatest(() => { setCurrent(csv); return cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare(); });
     S.updated = Date.now(); S.cached = false; S.msg = null;
-    const cd = cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare();
     // A compare file that fails or times out never fails the main load (only a refused key does)
     let cfail = false; // a failed compare file keeps the comparison already shown (and saved), never erases it
     const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { if (e instanceof AuthError) throw e; cfail = true; return null; }) : null;
     if (my !== gen) return;
-    const kept = cfail && S.cmpRows ? (store.get("cache", null) || {}).cmp || null : null;
-    if (!cfail || !S.cmpRows) setCompare(ccsv, cd);
+    const kept = onLatest(() => { const k = cfail && S.cmpRows ? (store.get("cache", null) || {}).cmp || null : null; if (!cfail || !S.cmpRows) setCompare(ccsv, cd); return k; });
     saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : kept, at: S.updated});
     checkFixture(my);
   } catch (e) {
@@ -1312,19 +1475,57 @@ function openPanel(sym, from, push = true) {
 }
 function closePanel(fromBack) {
   if (!P) return;
-  const {sym, from, pushed} = P; P = null; tipClose();
+  const {sym, from, pushed} = P; P = null; tipClose(); notesFor = null;
   $("sp").hidden = $("scrim").hidden = true; document.body.classList.remove("lock");
   if (!fromBack) { if (pushed) history.back(); else history.replaceState(null, "", pageURL()); }
   const back = from && from.isConnected ? from : [...document.querySelectorAll("[data-sym]")].find(e => e.dataset.sym === sym);
   if (back) back.focus();
 }
 const md = d => dateLabel(d).replace(/^\w+, /, ""); // "Oct 29"
+// ------------------------------------------------------------------ star and My notes
+function starBtn(sym) { // ☆ adds the stock to My list, ★ takes it off; never opens the row
+  const on = !!(mineOf(sym) || {}).star;
+  return el("button", {type: "button", cls: "st" + (on ? " on" : ""), "data-star": sym, text: on ? "★" : "☆",
+    "aria-label": (on ? "Remove " + sym + " from" : "Add " + sym + " to") + " My list", onclick: e => { e.stopPropagation(); starTap(sym); }});
+}
+function starTap(sym, inPanel) {
+  const e = mineOf(sym), on = !(e && e.star), err = on ? mineErr(MINE, sym) : "", msg = $(inPanel ? "nerr" : "mymsg");
+  if (err || !saveMine(mineWith(MINE, sym, {star: on}))) { msg.textContent = err || NOSAVE; return; }
+  msg.textContent = ""; render();
+  if (!inPanel) ([...document.querySelectorAll("[data-star]")].find(b => b.dataset.star === sym) || $("chips").querySelector("[aria-pressed=true]")).focus();
+}
+const NIN = {buy: "nbuy", cut: "ncut", target: "ntgt"};
+let notesFor = null; // the stock the note boxes were last filled for
+function syncNotes(row) {
+  const sym = P.sym, e = mineOf(sym), on = !!(e && e.star), sb = $("spstar");
+  if (notesFor !== sym) {
+    notesFor = sym; $("nerr").textContent = ""; $("nnote").value = e ? e.note : "";
+    for (const k in NIN) { const i = $(NIN[k]); i.value = e && e[k] !== null ? String(e[k]) : ""; i.classList.remove("bad"); i.removeAttribute("aria-invalid"); }
+  }
+  sb.textContent = on ? "★ On My list" : "☆ Add to My list"; sb.classList.toggle("primary", on);
+  sb.setAttribute("aria-label", (on ? "Remove " + sym + " from" : "Add " + sym + " to") + " My list");
+  $("nat").textContent = e && e.at ? "Saved " + new Date(e.at).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "";
+  const lv = e ? levelLine(e, row && !row.fetch_error ? row.close : null) : ""; $("nlvl").hidden = !lv; $("nlvl").textContent = lv;
+}
+function saveNotes() {
+  const sym = P.sym, row = (S.rows || []).find(r => r.symbol === sym), f = readNotes({note: $("nnote").value, buy: $("nbuy").value, cut: $("ncut").value, target: $("ntgt").value});
+  for (const k in NIN) { const i = $(NIN[k]), bad = !!f.bad && f.bad.includes(k); i.classList.toggle("bad", bad); if (bad) i.setAttribute("aria-invalid", "true"); else i.removeAttribute("aria-invalid"); }
+  if (f.bad) { $("nerr").textContent = priceMsg(row && row.close); $(NIN[f.bad[0]]).focus(); return; }
+  const err = mineErr(MINE, sym);
+  if (err || !saveMine(mineWith(MINE, sym, {...f, star: true, at: new Date().toISOString()}))) { $("nerr").textContent = err || NOSAVE; return; }
+  notesFor = null; render();
+}
+function clearNotes() {
+  if (!saveMine(mineWith(MINE, P.sym, {buy: null, cut: null, target: null, note: "", at: null}))) { $("nerr").textContent = NOSAVE; return; }
+  notesFor = null; render();
+}
 function renderPanel() {
   if (!P) return;
   const sym = P.sym, row = (S.rows || []).find(r => r.symbol === sym), b = $("spb"), add = (...k) => b.append(...k);
   const ok = row && !row.fetch_error, on = p => ok && !failures(row, PRESETS[p], S.date).length;
-  const had = $("sp").contains(document.activeElement) && document.activeElement !== $("spx");
-  $("sps").textContent = sym; $("spn").textContent = row && row.name || ""; b.textContent = "";
+  const had = b.contains(document.activeElement); // the star and note boxes are kept: typing survives a redraw
+  $("sps").textContent = sym; $("spn").textContent = [row && row.name, row && okPrice(row.close) && "₱" + price(row.close) + " close"].filter(Boolean).join(" · "); b.textContent = "";
+  syncNotes(row);
   const hs = H.state === "ok" && H.by.get(sym), cs = S.cmpRows && S.cmpRows.some(r => r.symbol === sym) ? S.cmpDate : null;
   const seen = [hs ? [...hs.keys()].pop() : null, cs].filter(Boolean).sort().pop();
   add(el("div", {cls: "status"}, !row ? "Not in today's scan" + (seen ? ", last seen " + dateLabel(seen) : "")
@@ -1453,9 +1654,9 @@ function tipBtn(label, b = el("button")) {
   b.type = "button"; b.className = "q"; b.textContent = "?"; b.setAttribute("aria-label", "What is " + label + "?"); b.setAttribute("aria-expanded", "false");
   b.addEventListener("click", e => {
     e.stopPropagation();
-    if (tipOn === b && tipPinned) tipClose(); else { tipOpen(b, label, true); $("tipsr").textContent = label + ": " + TIPS[label]; }
+    if (tipOn === b && tipPinned) tipClose(); else { tipOpen(b, label, true); $(b.closest("#sp") ? "spsr" : "tipsr").textContent = label + ": " + TIPS[label]; } // a modal panel hides the page's live region
   });
-  if (matchMedia("(hover: hover)").matches) { b.addEventListener("mouseenter", () => tipPinned || tipOpen(b, label)); b.addEventListener("mouseleave", () => tipPinned || tipClose()); }
+  if (matchMedia("(hover: hover)").matches) { b.addEventListener("mouseenter", () => tipOn === b || tipOpen(b, label)); b.addEventListener("mouseleave", () => tipPinned || tipClose()); }
   b.addEventListener("focus", () => tipPinned || tipOpen(b, label));
   b.addEventListener("blur", () => tipPinned || tipClose());
   return b;
@@ -1464,11 +1665,20 @@ function tipOpen(b, label, pin) {
   if (tipOn && tipOn !== b) tipClose();
   const t = $("tip"); t.textContent = ""; t.append(el("b", {text: label[0].toUpperCase() + label.slice(1)}), TIPS[label] || "");
   // tipAt: a scroll that focusing the ? itself caused doesn't close the bubble
-  t.hidden = false; tipOn = b; tipPinned = !!pin; tipAt = Date.now(); b.setAttribute("aria-expanded", "true"); b.setAttribute("aria-describedby", "tip");
+  t.hidden = false; tipOn = b; tipPinned = !!pin; tipAt = Date.now(); tipBox = (b.closest("[id]") || {}).id; tipPlace();
+}
+let tipBox = null; // the id of the box holding the open ?, to find it again after a redraw
+function tipPlace() {
+  const t = $("tip"), b = tipOn; b.setAttribute("aria-expanded", "true"); b.setAttribute("aria-describedby", "tip");
   const r = b.getBoundingClientRect(), w = t.offsetWidth, vw = document.documentElement.clientWidth; // kept on screen, outside any scroll box
   t.style.top = r.bottom + scrollY + 8 + "px"; t.style.left = Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2)) + scrollX + "px";
 }
-const tipGone = () => { if (tipOn && !tipOn.isConnected) tipClose(); }; // its ? was redrawn: no bubble left floating
+// Its ? was redrawn: a pinned bubble moves to the new ? of the same name in the same box, any other closes
+const tipGone = () => {
+  if (!tipOn || tipOn.isConnected) return;
+  const box = tipPinned && tipBox && $(tipBox), nb = box && [...box.querySelectorAll(".q")].find(q => q.getAttribute("aria-label") === tipOn.getAttribute("aria-label"));
+  if (nb) { tipOn = nb; tipPlace(); } else tipClose();
+};
 function tipClose() {
   if (!tipOn) return;
   tipOn.setAttribute("aria-expanded", "false"); tipOn.removeAttribute("aria-describedby"); tipOn = null; tipPinned = false; $("tip").hidden = true;
@@ -1487,13 +1697,36 @@ function init() {
   buildControls(); syncControls(); syncPanel(); settingsToURL();
   $("q").addEventListener("input", e => { S.q = e.target.value; if (S.rows) render(); });
   $("run").addEventListener("click", runNow);
+  // A hand-picked comparison on the latest day is also the saved copy's, so a later failed compare file keeps this one (T-28)
+  const keepCmp = cmp => { const c = !LATEST && store.get("cache", null); if (c) saveCache({...c, cmp}); };
   $("cmp").addEventListener("change", async e => {
-    const v = e.target.value;
-    if (!v) { setCompare(null); renderAll(); return; }
-    try { const t = await fileText("results/" + v + ".csv"); setCompare(t, v); }
-    catch (err) { if (err instanceof AuthError) S.authErr = true; setCompare(null); }
+    const v = e.target.value, my = dgen; // a day picked meanwhile wins
+    if (!v) { setCompare(null); keepCmp(null); renderAll(); return; }
+    try { const t = await fileText("results/" + v + ".csv"); if (my !== dgen) return; setCompare(t, v); keepCmp(t ? {date: v, csv: t} : null); }
+    catch (err) { if (my !== dgen) return; if (err instanceof AuthError) S.authErr = true; setCompare(null); }
     renderAll();
   });
+  const days = $("days"), setDays = open => {
+    days.hidden = !open; DB.setAttribute("aria-expanded", String(open)); days.textContent = "";
+    if (!open) return;
+    for (const x of dayList(S.index, latestDate())) days.append(el("button", {type: "button", role: "menuitem", "aria-current": x.date === S.date ? "true" : null,
+      text: dayLabel(x.date) + (x.latest ? " (latest)" : x.prov ? " (provisional)" : ""), onclick: () => { setDays(false); DB.focus(); pickDay(x.date); }}));
+    (days.querySelector("[aria-current]") || days.firstChild).focus();
+  };
+  DB.addEventListener("click", () => setDays(days.hidden));
+  days.addEventListener("keydown", e => {
+    const it = [...days.children], i = it.indexOf(document.activeElement), k = {ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: it.length - 1}[e.key];
+    if (k !== undefined) { e.preventDefault(); it[(k + it.length) % it.length].focus(); }
+    else if (e.key === "Escape") { e.stopPropagation(); setDays(false); DB.focus(); } else if (e.key === "Tab") setDays(false);
+  });
+  document.addEventListener("pointerdown", e => {
+    if (!days.hidden && !days.contains(e.target) && !DB.contains(e.target)) setDays(false);
+    if (tipPinned && !$("tip").contains(e.target) && !e.target.closest(".q")) tipClose(); // iPhone sends no click for plain background
+  });
+  $("spstar").addEventListener("click", () => starTap(P.sym, true));
+  $("nsave").addEventListener("click", saveNotes);
+  $("nclear").addEventListener("click", clearNotes);
+  for (const id of ["nbuy", "ncut", "ntgt", "nnote"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") saveNotes(); });
   $("keybtn").addEventListener("click", () => showKey($("keyp").hidden && "key"));
   $("keysave").addEventListener("click", saveKey);
   $("datesave").addEventListener("click", saveDate);
@@ -1506,6 +1739,7 @@ function init() {
   document.addEventListener("click", e => { if (tipOn && !$("tip").contains(e.target)) tipClose(); });
   let sy = scrollY; // a vertical page scroll closes the bubble; scrolling inside a box does not
   addEventListener("scroll", () => { if (tipOn && Math.abs(scrollY - sy) > 2 && Date.now() - tipAt > 300) tipClose(); sy = scrollY; }, {passive: true});
+  document.addEventListener("scroll", e => { if (tipOn && e.target !== document && e.target.contains(tipOn)) tipPlace(); }, {capture: true, passive: true}); // its own box scrolled: follow the ?
   $("homeitem").hidden = standalone();
   const GO = {keybtn: () => showKey($("keyp").hidden && "key"), homego: () => showHome(true), refresh};
   const more = $("more"), menu = $("menu"), items = [...menu.children].filter(b => !b.hidden);
@@ -1525,7 +1759,7 @@ function init() {
   $("scrim").addEventListener("click", () => closePanel());
   $("sp").addEventListener("keydown", e => { // Esc closes; Tab stays inside
     if (e.key !== "Tab") return;
-    const f = [...$("sp").querySelectorAll("button,[tabindex='0'],a[href]")], i = f.indexOf(document.activeElement);
+    const f = [...$("sp").querySelectorAll("button,input,[tabindex='0'],a[href]")], i = f.indexOf(document.activeElement);
     if (e.shiftKey ? i <= 0 : i === f.length - 1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
   });
   window.addEventListener("popstate", () => { const s = new URLSearchParams(location.search).get("s"); if (!s) closePanel(true); else if (!P) openPanel(s, null, false); });
