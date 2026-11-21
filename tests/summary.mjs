@@ -8,7 +8,8 @@ import {readFileSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 
-const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
+const read = f => readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", f), "utf8");
+const html = read("app.js"), markup = read("index.html"); // the page's code; its markup (the data-tip ? buttons)
 const block = (a, b) => { const i = html.indexOf(a), j = html.indexOf(b); if (i < 0 || j < 0) throw new Error(a + " markers not found"); return html.slice(i, j); };
 const {shouldRefresh, summaryLine, mood, moodLine, TIPS} = new Function(block("/* STATUS-START", "/* STATUS-END */") +
   block("/* SUMMARY-START", "/* SUMMARY-END */") + block("/* TIPS-START", "/* TIPS-END */") + "; return {shouldRefresh, summaryLine, mood, moodLine, TIPS};")();
@@ -77,7 +78,10 @@ const LABELS = ["Stock", "Days on list", "Momentum", "Price ₱", "Traded today"
   "9-day change at least", "Company size at least", "Below year high, %", "Usual daily trading above", "Traded today above", "Price above", "Daily swing between",
   "Strict", "Loose", "Custom", "missed by one filter", "Knocking on the door", "BOTH", "Provisional", "Market mood"];
 eq(LABELS.filter(l => typeof TIPS[l] !== "string" || !TIPS[l]), [], "every plan § 7 label has an explanation");
-const shown = [...html.matchAll(/data-tip="([^"]+)"|tipBtn\("([^"]+)"\)/g)].map(m => m[1] || m[2])
+// Both halves of the page: the markup's data-tip attributes and the code's tipBtn calls; a half with none is a dropped source
+const tipsIn = (t, re) => [...t.matchAll(re)].map(m => m[1]), marked = tipsIn(markup, /data-tip="([^"]+)"/g), coded = tipsIn(html, /tipBtn\("([^"]+)"\)/g);
+eq([marked.length > 0, coded.length > 0], [true, true], "the ? labels are read from index.html (data-tip) and app.js (tipBtn)");
+const shown = marked.concat(coded)
   .concat([...block("const COLS = [", "function renderHead").matchAll(/\bt: "([^"]+)"/g)].map(m => m[1]))
   .concat([...block("const SLIDERS = [", "const CHECKS").matchAll(/label: "([^"]+)"/g)].map(m => m[1]));
 eq(shown.filter(l => !(l in TIPS)), [], "every ? on the page has an explanation");

@@ -9,7 +9,7 @@ import {readFileSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 
-const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
+const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "app.js"), "utf8"); // the page's code
 const i = html.indexOf("/* STATUS-START"), j = html.indexOf("/* STATUS-END */");
 if (i < 0 || j < 0) throw new Error("STATUS markers not found");
 const {missedRun, cleanIndex, showMissed} = new Function(html.slice(i, j) + "; return {missedRun, cleanIndex, showMissed};")();

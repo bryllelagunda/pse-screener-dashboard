@@ -3,17 +3,21 @@
 //
 // scan(files) -> [{code, path, line, msg}], files = [{path, bytes}] (bytes a Buffer). Every message starts with a stable
 // code and gives path:line, never the matched text (CI logs are public). Codes:
-//   ALLOWLIST  a file not on the public list            SIZE        index.html over 128 KB
+//   ALLOWLIST  a file not on the public list            SIZE        index.html over 40 KB, app.js over 160 KB
 //   EXT-LOAD   a script, stylesheet or resource load    LINK-TAGS   the three exact <link> tags, once each
-//   HOSTS      a host other than (api.)github.com       CSP         the one exact policy, before the first script
+//   HOSTS      a host other than (api.)github.com       CSP         the one exact policy, before the one script tag
+//   SCRIPT-TAG index.html's one script tag = the one built from app.js (node tests/stamp.mjs); the boot line and its CSS
+//   INLINE-CODE an event-handler attribute (on...=) in index.html
 //   MANIFEST   manifest.webmanifest keys and values     ICON        icon.png: 512 x 512, under 20,000 bytes, = tests/icon.mjs
 //   PNG-CHUNKS a PNG with other chunks or extra bytes   WIREFRAME   docs/wireframe.png changed (pinned by sha256)
 //   RESULTS-SHAPED results CSV text                     TOKEN       a GitHub token shape
 //   ROWS       a line that starts like a stock row      DEMO-ROWS   tests/demo.mjs: CSV-looking lines or symbols
-//   DEMO-WRITE tests/demo.mjs writes a file             DEMO-READ   tests/demo.mjs reads other than its three files
-//   DEMO-LISTEN tests/demo.mjs listens beyond 127.0.0.1 PAGE-DEMO   index.html: "demo", serviceWorker, caches.
+//   DEMO-WRITE tests/demo.mjs writes a file             DEMO-READ   tests/demo.mjs reads other than its four files
+//   DEMO-LISTEN tests/demo.mjs listens beyond 127.0.0.1 PAGE-DEMO   index.html or app.js: "demo", serviceWorker, caches.
 //   KEY-BLOCK  the key's end date outside its block, a request inside it, the key in the address, Forget key
-//   UNSAFE-DOM innerHTML, eval, script URLs and the like
+//   UNSAFE-DOM innerHTML, eval, script URLs, a script element made in code, import(), workers
+// The page is two files: index.html (markup and styles) and app.js (all code); every page rule reads both.
+// The command line prints each finding as "CODE path:line what: fix (see README.md#code)".
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
@@ -22,9 +26,9 @@ import {fileURLToPath, pathToFileURL} from "node:url";
 import {iconBytes} from "./icon.mjs";
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-export const CSP = "default-src 'self'; connect-src https://api.github.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+export const CSP = "default-src 'self'; connect-src https://api.github.com; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 export const LINKS = ['<link rel="manifest" href="manifest.webmanifest">', '<link rel="apple-touch-icon" href="icon.png">', '<link rel="icon" href="icon.png">'];
-const ALLOW = /^(index\.html|README\.md|CLAUDE\.md|\.gitignore|manifest\.webmanifest|icon\.png|docs\/wireframe\.png|tests\/[a-z]+\.mjs|\.github\/workflows\/[a-z-]+\.yml)$/;
+const ALLOW = /^(index\.html|app\.js|README\.md|CLAUDE\.md|\.gitignore|manifest\.webmanifest|icon\.png|docs\/wireframe\.png|tests\/[a-z]+\.mjs|\.github\/workflows\/[a-z-]+\.yml)$/;
 const WIREFRAME_SHA256 = "f48b46465d5982f255f067c8297fba7ae11ba22efb522f36f40a00a4e428dead"; // origin/main 0339337
 const MANIFEST = {name: "PSE Screener", short_name: "PSE Screener", start_url: "./", scope: "./", display: "standalone",
   background_color: "#16191f", theme_color: "#16191f", icons: [{src: "icon.png", sizes: "512x512", type: "image/png", purpose: "any maskable"}]};
@@ -32,15 +36,26 @@ const PNG_SIG = "89504e470d0a1a0a", PNG_OK = new Set(["IHDR", "PLTE", "IDAT", "I
 const RESULTS = /^symbol,name,data_date,|pass_strict,pass_loose/m, TOKEN = /github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}/;
 const ROW_START = /^\s*["']?[A-Z][A-Z0-9]{1,4}["']?,/;
 const DEMO_OK = new Set(["GET", "POST", "PUT", "OK", "UTC", "PSE", "CSV", "PNG"]);
-const UNSAFE = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|srcdoc|setAttribute\(\s*["'`]on|javascript:|set(Timeout|Interval)\(\s*["'`]|\.src\s*=/;
-// tests/demo.mjs may read only these three files, through this one line and this one call
+const UNSAFE = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|srcdoc|setAttribute\(\s*["'`]on|javascript:|set(Timeout|Interval)\(\s*["'`]|\.src\s*=|createElement(NS)?\s*\([^)]*["'`]script["'`]|\bimport\s*\(|new\s+(Shared)?Worker\b|importScripts/i;
+// The one way code reaches the page: this tag, built from the tracked app.js bytes (node tests/stamp.mjs writes it)
+export function scriptTag(js) {
+  const h = createHash("sha384").update(js);
+  const d = h.digest();
+  return '<script src="app.js?v=' + d.toString("hex").slice(0, 16) + '" integrity="sha384-' + d.toString("base64") + '"></script>';
+}
+export const TAG_SHAPE = /^<script src="app\.js\?v=[0-9a-f]*" integrity="sha384-[A-Za-z0-9+/=]*"><\/script>$/;
+// What a phone shows when page and code don't match (D-DSR-6); app.js removes it as its first statement
+export const BOOT = '<p id="boot" class="boot" role="status">Couldn\'t start the page. You may be offline, or a new version just came out: <a href="./?r=1">Reload</a>. If this stays, try again in 10 minutes.</p>';
+export const BOOT_CSS = [".boot{visibility:hidden;animation:boot 0s 4s forwards}", "@keyframes boot{to{visibility:visible}}"];
+export const BOOT_JS = '"use strict";\ndocument.getElementById("boot")?.remove();';
+// tests/demo.mjs may read only these four files, through this one line and this one call
 const DEMO_FS = 'import {readFileSync} from "node:fs";';
-const DEMO_MAP = 'const READ = Object.freeze({"/": "index.html", "/manifest.webmanifest": "manifest.webmanifest", "/icon.png": "icon.png"});';
+const DEMO_MAP = 'const READ = Object.freeze({"/": "index.html", "/app.js": "app.js", "/manifest.webmanifest": "manifest.webmanifest", "/icon.png": "icon.png"});';
 const DEMO_CALL = "readFileSync(join(ROOT, READ[p]))", DEMO_MODULES = ["node:fs", "node:http", "node:path", "node:url"];
 
 export function scan(files) {
   const out = [];
-  const fail = (code, path, line, msg) => out.push({code, path, line, msg});
+  const fail = (code, path, line, msg, fix) => out.push(fix ? {code, path, line, msg, fix} : {code, path, line, msg});
   const lineOf = (text, i) => i < 0 ? 1 : text.slice(0, i).split("\n").length;
   const each = (text, re, f) => text.split("\n").forEach((l, i) => { if (re.test(l)) f(i + 1); });
   const byPath = new Map(files.map(f => [f.path, f.bytes]));
@@ -54,9 +69,10 @@ export function scan(files) {
     if (path === "tests/demo.mjs") demo(t, fail, each);
     else each(t, ROW_START, n => fail("ROWS", path, n, "line starts like a stock row (symbol, then a comma)"));
   }
-  const html = byPath.get("index.html");
-  if (!html) fail("ALLOWLIST", "index.html", 1, "index.html missing");
-  else page(html.toString("utf8"), fail, lineOf);
+  const html = byPath.get("index.html"), js = byPath.get("app.js");
+  if (!html) fail("ALLOWLIST", "index.html", 1, "index.html missing", "restore it: git checkout origin/main -- index.html");
+  if (!js) fail("ALLOWLIST", "app.js", 1, "app.js missing", "restore it: git checkout origin/main -- app.js");
+  if (html || js) page(html ? html.toString("utf8") : "", js || null, fail, lineOf);
   const mf = byPath.get("manifest.webmanifest");
   if (!mf) fail("MANIFEST", "manifest.webmanifest", 1, "manifest.webmanifest missing");
   else manifest(mf.toString("utf8"), fail);
@@ -88,37 +104,84 @@ function png(path, b, fail) {
   if (TOKEN.test(raw)) fail("TOKEN", path, 1, "token-like string inside a picture");
 }
 
-function page(html, fail, lineOf) {
-  const P = "index.html", size = Buffer.byteLength(html);
-  if (size >= 128 * 1024) fail("SIZE", P, 1, "index.html is " + size + " bytes (limit 128 KB)");
-  const csps = [...html.matchAll(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/gi)];
-  if (csps.length !== 1 || csps[0][1] !== CSP) fail("CSP", P, csps.length ? lineOf(html, csps[0].index) : 1, "CSP meta tag missing, duplicated or changed");
-  else if (csps[0].index > html.indexOf("<script")) fail("CSP", P, lineOf(html, csps[0].index), "CSP meta tag must come before the first script");
-  const u = UNSAFE.exec(html); if (u) fail("UNSAFE-DOM", P, lineOf(html, u.index), "unsafe DOM write, eval or script URL found");
+function page(html, jsBytes, fail, lineOf) {
+  const H = "index.html", A = "app.js", js = jsBytes ? jsBytes.toString("utf8") : "";
+  const files = [[H, html]].concat(jsBytes ? [[A, js]] : []);
+  for (const [P, t, max] of [[H, html, 40], [A, js, 160]]) {
+    const size = Buffer.byteLength(t);
+    if (size >= max * 1024) fail("SIZE", P, 1, P + " is " + size + " bytes (limit " + max + " KB)", "move code to app.js or styles out of the markup; a raise is a plan decision");
+  }
+  // CSP: one exact policy, before the one script tag
+  const csps = [...html.matchAll(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/gi)], first = html.search(/<script/i);
+  if (csps.length !== 1 || csps[0][1] !== CSP) fail("CSP", H, csps.length ? lineOf(html, csps[0].index) : 1, "CSP meta tag missing, duplicated or changed", "restore it from git show origin/main:index.html");
+  else if (first >= 0 && csps[0].index > first) fail("CSP", H, lineOf(html, csps[0].index), "CSP meta tag must come before the script tag", "move the CSP meta tag back into the head, above the script tag");
+  // SCRIPT-TAG: exactly one <script, equal to the tag built from app.js, last before </body>; the boot line and its CSS once each
+  const tags = [...html.matchAll(/<script/gi)], want = jsBytes ? scriptTag(jsBytes) : null;
+  const conflict = /^(<{7}|={7}|>{7})( |$)/m.exec(html);
+  if (conflict && tags.some(m => Math.abs(lineOf(html, m.index) - lineOf(html, conflict.index)) < 8))
+    fail("SCRIPT-TAG", H, lineOf(html, conflict.index), "merge conflict on the script tag", "keep either side, run node tests/stamp.mjs, commit");
+  else if (tags.length !== 1) {
+    const at = tags.length ? lineOf(html, tags[tags.length > 1 ? 1 : 0].index) : 1;
+    fail("SCRIPT-TAG", H, at, "found " + tags.length + " script tags (1 allowed)", tags.length ? "remove the extra tag at line " + at : "restore the tag, then run node tests/stamp.mjs");
+  } else {
+    const at = tags[0].index, L = lineOf(html, at), line = html.slice(at).split("\n")[0], end = line.indexOf("</script>");
+    const tag = end < 0 ? line : line.slice(0, end + 9);
+    if (!TAG_SHAPE.test(tag)) {
+      const why = /^<script\s*>/i.test(tag) ? "an inline script" : /\stype\s*=/i.test(tag) ? "a type attribute on the script tag"
+        : !/\ssrc="app\.js\?v=/.test(tag) ? "a script tag that loads something other than app.js" : !/\sintegrity="sha384-/.test(tag) ? "a script tag without its integrity fingerprint" : "a script tag of another shape";
+      fail("SCRIPT-TAG", H, L, "found " + why + " (1 allowed: <script src=\"app.js?v=…\" integrity=\"sha384-…\"></script>)", "restore the tag's shape, then run node tests/stamp.mjs");
+    } else if (want && tag !== want) fail("SCRIPT-TAG", H, L, "the script tag does not match app.js", "run node tests/stamp.mjs, then commit index.html");
+    else if (html.indexOf(tag + "\n</body>") !== at) fail("SCRIPT-TAG", H, L, "the script tag must be the last thing before </body>", "move it to the line above </body>");
+  }
+  for (const s of [BOOT, ...BOOT_CSS]) if (html.split(s).length !== 2)
+    fail("SCRIPT-TAG", H, 1, "boot line (or its CSS) missing or repeated", "restore it from git show origin/main:index.html");
+  if (jsBytes && !js.startsWith(BOOT_JS)) fail("SCRIPT-TAG", A, 1, "app.js must start by removing the boot line", "restore its first two lines from git show origin/main:app.js");
+  // INLINE-CODE: no event-handler attribute in any tag (quoted values blanked, so a ">" or "on... =" inside one can't hide or fake one)
+  for (const m of html.matchAll(/<[a-z]/gi)) {
+    let s = "", q = null, eq = false;
+    for (let i = m.index + 1; i < html.length; i++) {
+      const c = html[i];
+      if (q) { if (c === q) q = null; s += " "; continue; }
+      if ((c === '"' || c === "'") && eq) { q = c; s += " "; continue; }
+      if (c === ">") break;
+      if (!/\s/.test(c)) eq = c === "=";
+      s += c;
+    }
+    if (/[\s/]on[a-z]+\s*=/i.test(s)) fail("INLINE-CODE", H, lineOf(html, m.index), "an event-handler attribute (on...=) in a tag", "attach the handler in app.js with addEventListener");
+  }
+  for (const [P, t] of files) { const u = UNSAFE.exec(t); if (u) fail("UNSAFE-DOM", P, lineOf(t, u.index), "unsafe DOM write, eval, script URL, script element or code load found", "build elements with el() and textContent"); }
+  // LINK-TAGS and EXT-LOAD: index.html minus the three links and the one script tag, and all of app.js
   let rest = html;
   for (const tag of LINKS) {
     const n = html.split(tag).length - 1;
-    if (n !== 1) fail("LINK-TAGS", P, 1, "each of the three allowed <link> tags must appear exactly once (found " + n + ")");
+    if (n !== 1) fail("LINK-TAGS", H, 1, "each of the three allowed <link> tags must appear exactly once (found " + n + ")");
     rest = rest.split(tag).join("");
   }
-  const x = /<[a-z][^>]*[\s/](src|srcset|poster|data)\s*=|<(link|base)[^>]*[\s/]href\s*=|@import|\burl\(/i.exec(rest); // any tag that loads a resource
-  if (x) fail("EXT-LOAD", P, lineOf(rest, x.index), "external script, stylesheet or resource found");
-  for (const m of html.matchAll(/https?:\/\/([^/"'\s);]+)/g))
-    if (!["api.github.com", "github.com"].includes(m[1])) fail("HOSTS", P, lineOf(html, m.index), "unexpected host");
-  const pr = /["'`(=]\s*\/\/[a-z0-9]|wss?:\/\//i.exec(html);
-  if (pr) fail("HOSTS", P, lineOf(html, pr.index), "protocol-relative or websocket URL found");
-  for (const re of [/demo/i, /serviceWorker/, /caches\./]) { const m = re.exec(html); if (m) fail("PAGE-DEMO", P, lineOf(html, m.index), "the page must not hold demo code, a service worker or a cache store"); }
-  // The key's end date: read and written only inside KEY-START ... KEY-END, which sends nothing.
-  const a = html.indexOf("/* KEY-START"), b = html.indexOf("/* KEY-END */");
-  if (a < 0 || b < a || html.indexOf("/* KEY-START", a + 1) >= 0) { fail("KEY-BLOCK", P, 1, "KEY-START / KEY-END markers missing or repeated"); return; }
-  const block = html.slice(a, b), outside = html.slice(0, a) + html.slice(b);
-  const r = /\bfetch\(|\bgh\(/.exec(block); if (r) fail("KEY-BLOCK", P, lineOf(html, a + r.index), "the KEY block must not make a request");
-  const k = /keyExp/.exec(outside); if (k) fail("KEY-BLOCK", P, lineOf(outside, k.index), "keyExp used outside the KEY block");
-  const pu = /function pageURL\(\)[\s\S]*?\n\}/.exec(html);
-  if (!pu || /key/i.test(pu[0])) fail("KEY-BLOCK", P, pu ? lineOf(html, pu.index) : 1, "pageURL must exist and hold nothing about the key");
+  if (want) rest = rest.replace(want, "");
+  const lk = /<link/i.exec(js); if (lk) fail("LINK-TAGS", A, lineOf(js, lk.index), "app.js must hold no <link tag");
+  const LOAD = /<[a-z][^>]*[\s/](src|srcset|poster|data)\s*=|<(link|base)[^>]*[\s/]href\s*=|@import|\burl\(/i; // any tag that loads a resource
+  for (const [P, t] of [[H, rest], ...files.slice(1)]) { const x = LOAD.exec(t); if (x) fail("EXT-LOAD", P, lineOf(t, x.index), "external script, stylesheet or resource found"); }
+  for (const [P, t] of files) {
+    for (const m of t.matchAll(/https?:\/\/([^/"'\s);]+)/g))
+      if (!["api.github.com", "github.com"].includes(m[1])) fail("HOSTS", P, lineOf(t, m.index), "unexpected host");
+    const pr = /["'`(=]\s*\/\/[a-z0-9]|wss?:\/\//i.exec(t);
+    if (pr) fail("HOSTS", P, lineOf(t, pr.index), "protocol-relative or websocket URL found");
+    for (const re of [/demo/i, /serviceWorker/, /caches\./]) { const m = re.exec(t); if (m) fail("PAGE-DEMO", P, lineOf(t, m.index), "the page must not hold demo code, a service worker or a cache store"); }
+  }
+  // KEY-BLOCK: the key's end date is read and written only inside KEY-START ... KEY-END (in app.js), which sends nothing
+  const km = /\/\* KEY-(START|END)/.exec(html); if (km) fail("KEY-BLOCK", H, lineOf(html, km.index), "KEY markers belong in app.js only", "move the KEY block back to app.js");
+  const ke = /keyExp/.exec(html); if (ke) fail("KEY-BLOCK", H, lineOf(html, ke.index), "keyExp used outside the KEY block", "read the end date only inside app.js's KEY block");
+  if (!jsBytes) return;
+  const a = js.indexOf("/* KEY-START"), b = js.indexOf("/* KEY-END */");
+  if (a < 0 || b < a || js.indexOf("/* KEY-START", a + 1) >= 0 || js.indexOf("/* KEY-END */", b + 1) >= 0) { fail("KEY-BLOCK", A, 1, "KEY-START / KEY-END markers missing or repeated"); return; }
+  const block = js.slice(a, b), outside = js.slice(0, a) + js.slice(b);
+  const r = /\bfetch\(|\bgh\(/.exec(block); if (r) fail("KEY-BLOCK", A, lineOf(js, a + r.index), "the KEY block must not make a request");
+  const k = /keyExp/.exec(outside); if (k) fail("KEY-BLOCK", A, lineOf(outside, k.index), "keyExp used outside the KEY block", "read the end date only inside the KEY block");
+  const pu = /function pageURL\(\)[\s\S]*?\n\}/.exec(js);
+  if (!pu || /key/i.test(pu[0])) fail("KEY-BLOCK", A, pu ? lineOf(js, pu.index) : 1, "pageURL must exist and hold nothing about the key");
   const fk = /function forgetKey\(\)[\s\S]*?\n\}/.exec(block);
   if (!fk || !["key", "keyExp", "keyNag", "cache"].every(n => fk[0].includes('store.del("' + n + '")')))
-    fail("KEY-BLOCK", P, fk ? lineOf(html, a + fk.index) : 1, "forgetKey must delete key, keyExp, keyNag and cache");
+    fail("KEY-BLOCK", A, fk ? lineOf(js, a + fk.index) : 1, "forgetKey must delete key, keyExp, keyNag and cache");
 }
 
 function manifest(text, fail) {
@@ -150,17 +213,20 @@ function demo(t, fail, each) {
     if (mod && !DEMO_MODULES.includes(mod[1]) || /\bfrom\s+["'](node:)?fs/.test(l) && l !== DEMO_FS)
       fail("DEMO-READ", P, i + 1, "tests/demo.mjs may import only " + DEMO_MODULES.join(", ") + ", and from node:fs only readFileSync");
     if (/\brequire\(|\bimport\(|createReadStream|\bopen(Sync)?\(|readdir|\.\.\/|process\.binding/.test(l))
-      fail("DEMO-READ", P, i + 1, "tests/demo.mjs may read only index.html, manifest.webmanifest and icon.png");
+      fail("DEMO-READ", P, i + 1, "tests/demo.mjs may read only index.html, app.js, manifest.webmanifest and icon.png");
     for (const m of l.matchAll(/readFileSync\(/g)) if (l.slice(m.index, m.index + DEMO_CALL.length) !== DEMO_CALL && l !== DEMO_FS)
       fail("DEMO-READ", P, i + 1, "file reads must go through " + DEMO_CALL);
   });
 }
+
+// One finding as the command line prints it: the code, path:line, what failed, the fix and where the README explains it
+export const say = e => e.code + " " + e.path + ":" + e.line + " " + e.msg + (e.fix ? ": " + e.fix : "") + " (see README.md#" + e.code.toLowerCase() + ")";
 
 export const realFiles = () => execFileSync("git", ["ls-files", "--cached"], {cwd: ROOT}).toString().split("\n").filter(Boolean)
   .map(path => ({path, bytes: readFileSync(join(ROOT, path))}));
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const errs = scan(realFiles());
-  if (errs.length) { console.error(errs.map(e => e.code + " " + e.path + ":" + e.line + " " + e.msg).join("\n")); process.exit(1); }
+  if (errs.length) { console.error(errs.map(say).join("\n")); process.exit(1); }
   console.log("static OK");
 }
