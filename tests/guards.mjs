@@ -82,6 +82,7 @@ refuse("a websocket in the code", "HOSTS", app('const OWNER = "', 'const X = "ws
 refuse("an added img-src * in the CSP", "CSP", page("form-action 'none'\">", "form-action 'none'; img-src *\">"));
 { const csp = txt("index.html").match(/<meta\s+http-equiv="Content-Security-Policy"[^>]*>/)[0];
   refuse("the CSP inside a comment", "CSP", page(csp, "<!-- " + csp + " -->"));
+  refuse("a second policy behind an abrupt <!--> comment", "CSP", page(csp, csp + "\n<!--><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'none'\"><!-- -->"));
   refuse("the CSP moved into the body", "CSP", {"index.html": B(txt("index.html").replace(csp + "\n", "").replace("<body>", "<body>\n" + csp))});
   refuse("the script tag inside a comment", "SCRIPT-TAG", page(TAG0(), "<!-- " + TAG0() + " -->"));
   refuse("the boot line inside a comment", "SCRIPT-TAG", page(/<p id="boot"[^\n]*<\/p>/.exec(txt("index.html"))[0], "<!-- " + /<p id="boot"[^\n]*<\/p>/.exec(txt("index.html"))[0] + " -->"));
@@ -234,7 +235,8 @@ refuse("keyExp in index.html", "KEY-BLOCK", page("</main>", '<p data-x="keyExp">
 const IN = "function el(tag, props, ...kids) {", inEl = s => app(IN, IN + "\n  " + s + ";");
 for (const s of ['location.assign("https://github.com/?k=" + S.key)', "window.open(u)", 'el("a", {href: "https://github.com/?k=" + S.key})', 'fetch(API + "?k=" + S.key)',
   'const k = store.get("key", "")', 'localStorage.getItem("key")', "location.replace(u)", 'location.href = "https://github.com/"', "document.location = u", "send(S.key)",
-  'store.set("key", "x")', "S.key = u", "const {key} = S", 'const k = S["key"]', 'fetch("https://api.github.com/x?k=" + (S.key || ""))', "send(S.rows && S.key)", "const k = S.key || x"])
+  'store.set("key", "x")', "S.key = u", "const {key} = S", 'const k = S["key"]', 'fetch("https://api.github.com/x?k=" + (S.key || ""))', "send(S.rows && S.key)", "const k = S.key || x",
+  "let k; if (k = S.key) send(k)", "h.if(a && S.key)", "if (send(S.key)) x()"])
   refuse("code: " + s, "KEY-USE", inEl(s));
 for (const s of ["window.open(u)", "localStorage.getItem(k)", "S.key"]) refuse("markup: " + s, "KEY-USE", page("</main>", "<!-- " + s + " -->\n</main>"));
 for (const s of ["if (!S.key) return", "const t = S.key ? 1 : 2", "const ok = S.key && S.rows", "const k = !!S.key || 0", "if (S.rows && S.key) f()", "while (x || S.key) f()"]) pass("code: " + s, inEl(s), "KEY-USE");
@@ -322,6 +324,8 @@ try {
     { const r = eh(); ok(!r.ok && r.msg.includes("does not call pre-push.local") && keep("pre-push") === "#!/bin/sh\nexit 0\n", "7: a pre-push without the .local call is refused and kept"); }
     writeFileSync(H("pre-push"), "#!/bin/sh\n# runs pre-push.local\nexit 0\n", {mode: 0o755});
     { const r = eh(); ok(!r.ok && r.msg.includes("does not call pre-push.local"), "7: a pre-push naming pre-push.local only in a comment is refused"); }
+    writeFileSync(H("pre-push"), "#!/bin/sh\nexit 0 # pre-push.local\n", {mode: 0o755});
+    { const r = eh(); ok(!r.ok && r.msg.includes("does not call pre-push.local"), "7: a pre-push naming pre-push.local only in a trailing comment is refused"); }
     writeFileSync(H("pre-push"), mainHook, {mode: 0o755});
     writeFileSync(H("pre-push.local"), "#!/bin/sh\n# pse-screener-dashboard before-push check v9 (x)\nexit 0\n", {mode: 0o755});
     { const r = eh(); ok(!r.ok && keep("pre-push.local").includes("exit 0"), "7: a higher-version marker that never runs the checker is refused, not trusted"); }

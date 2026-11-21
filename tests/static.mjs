@@ -152,7 +152,7 @@ function page(raw, jsBytes, fail, lineOf) {
   const H = "index.html", A = "app.js", js = jsBytes ? jsBytes.toString("utf8") : "";
   // The markup as the browser reads it: <!-- comments --> blanked (same length, so lines stay), so a policy, the tag or
   // the boot line inside a comment counts as missing
-  const html = raw.replace(/<!--[\s\S]*?(-->|$)/g, m => m.replace(/[^\n]/g, " "));
+  const html = raw.replace(/<!--(?:-?>|[\s\S]*?--!?>|[\s\S]*$)/g, m => m.replace(/[^\n]/g, " ")); // as browsers end them: <!-->, <!--->, -->, --!>
   const files = [[H, raw]].concat(jsBytes ? [[A, js]] : []);
   for (const [P, t, max] of [[H, raw, 40], [A, js, 160]]) {
     const size = Buffer.byteLength(t);
@@ -161,7 +161,8 @@ function page(raw, jsBytes, fail, lineOf) {
   // CSP: one exact policy, before the one script tag
   const csps = [...html.matchAll(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/gi)], first = html.search(/<script/i);
   const head = [html.indexOf("<head>"), html.indexOf("</head>")];
-  if (csps.length !== 1 || csps[0][1] !== CSP) fail("CSP", H, csps.length ? lineOf(html, csps[0].index) : 1, "CSP meta tag missing, duplicated, changed or inside a comment", "restore it from git show origin/main:index.html");
+  const anyCsp = raw.match(/Content-Security-Policy/gi) || []; // a second policy, even one that looks commented out, is refused
+  if (csps.length !== 1 || csps[0][1] !== CSP || anyCsp.length !== 1) fail("CSP", H, csps.length ? lineOf(html, csps[0].index) : 1, "CSP meta tag missing, duplicated, changed or inside a comment", "restore it from git show origin/main:index.html");
   else if (head[0] < 0 || csps[0].index < head[0] || csps[0].index > head[1]) fail("CSP", H, lineOf(html, csps[0].index), "CSP meta tag must be inside <head>", "move it back into the head");
   else if (first >= 0 && csps[0].index > first) fail("CSP", H, lineOf(html, csps[0].index), "CSP meta tag must come before the script tag", "move the CSP meta tag back into the head, above the script tag");
   // SCRIPT-TAG: exactly one <script, equal to the tag built from app.js, last before </body>; the boot line and its CSS once each
@@ -239,13 +240,16 @@ function page(raw, jsBytes, fail, lineOf) {
 // header, read from and written to storage once each; localStorage only inside store; no navigation call at all (connect-src
 // stops requests, not a navigation, a link or a new window). index.html holds none of it.
 const SINKS = /\blocation\s*\.\s*(assign|replace)\s*\(|\blocation\s*\.\s*href\s*=(?!=)|\blocation\s*=(?!=)|\bdocument\s*\.\s*location\b|\bwindow\s*\.\s*open\s*\(|\bopen\s*\(\s*["'`]?https?:/;
-// The word before the "(" that opens the bracket S.key sits in ("if (a && S.key)" gives "if ...")
-function condOf(js, i) {
+// S.key closes a real if / while condition (not obj.if(…)) that assigns nothing: "if (a && S.key)", never "if (k = S.key)"
+function condOk(js, i) {
   for (let d = 0, j = i - 1; j >= 0; j--) {
     if (js[j] === ")") d++;
-    else if (js[j] === "(" && d-- === 0) return js.slice(Math.max(0, j - 8), j).trim().split(/\W+/).pop() + " ...";
+    else if (js[j] === "(" && d-- === 0) {
+      const inner = js.slice(j + 1, i);
+      return /(^|[\s;{}])(if|while)\s*$/.test(js.slice(Math.max(0, j - 9), j)) && !/(^|[^=!<>])=(?!=)/.test(inner) && /(^|&&|\|\||\()\s*$/.test(inner);
+    }
   }
-  return "";
+  return false;
 }
 function keyUse(html, js, fail, lineOf) {
   const H = "index.html", A = "app.js", FIX = "use the key only as a yes/no check; requests go through gh()";
@@ -263,7 +267,7 @@ function keyUse(html, js, fail, lineOf) {
     if (/^= "";/.test(post)) { forgetK++; continue; }
     if (/\+$/.test(pre) || /^\+/.test(post) || /^=(?!=)/.test(post)) { bad(i); continue; }
     // allowed: !S.key, S.key ? …, S.key && … (their value is never the key), and S.key closing an if / while condition
-    if (pre.endsWith("!") || /^(\?(?![.?])|&&)/.test(post) || /^\)/.test(post) && /^(if|while)\b/.test(condOf(js, i))) continue;
+    if (pre.endsWith("!") || /^(\?(?![.?])|&&)/.test(post) || /^\)/.test(post) && condOk(js, i)) continue;
     bad(i);
   }
   if (bearer !== 1 || setK !== 1 || forgetK !== 1) bad(1, "the key must be sent once (gh's Bearer header), set once (Save key) and cleared once (Forget key)");
@@ -353,7 +357,7 @@ echo "pre-push: $local_hook is missing or not executable: run node tests/all.mjs
 exit 1
 `;
 const MARK = /^# pse-screener-dashboard before-push check v(\d+) /m, HOOK_V = +MARK.exec(HOOK_LOCAL)[1];
-const codeLines = t => t.split("\n").filter(l => !/^\s*#/.test(l)).join("\n"); // a hook's lines that are not comments
+const codeLines = t => t.split("\n").map(l => l.replace(/(^|\s)#.*$/, "")).join("\n"); // a hook's text without its comments
 // Fills and checks the slot; never sets core.hooksPath, never overwrites gstack's pre-push or another tool's add-on.
 // -> {ok, msg}; every write is named in msg. Runs from node tests/all.mjs and a local node tests/static.mjs, never in CI.
 export function ensureHook(o = {}) {
