@@ -1710,7 +1710,7 @@ function init() {
     days.hidden = !open; DB.setAttribute("aria-expanded", String(open)); days.textContent = "";
     if (!open) return;
     for (const x of dayList(S.index, latestDate())) days.append(el("button", {type: "button", role: "menuitem", "aria-current": x.date === S.date ? "true" : null,
-      text: dayLabel(x.date) + (x.latest ? " (latest)" : x.prov ? " (provisional)" : ""), onclick: () => { setDays(false); DB.focus(); pickDay(x.date); }}));
+      text: dayLabel(x.date) + (x.latest ? " (latest)" : x.prov ? " (provisional)" : ""), onclick: () => { setDays(false); DB.focus(); pickDay(x.date).then(() => scrollTo(0, 0)); }})); // the bar and summary in view
     (days.querySelector("[aria-current]") || days.firstChild).focus();
   };
   DB.addEventListener("click", () => setDays(days.hidden));
