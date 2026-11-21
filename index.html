@@ -177,6 +177,7 @@ thead th .th button:first-child{width:auto;white-space:normal}
 }
 @media (max-width:379px){th{white-space:normal}}
 .boot{visibility:hidden;animation:boot 0s 4s forwards}@keyframes boot{to{visibility:visible}}
+body:has(#boot) header .row,body:has(#boot) main>:not(#boot){display:none}
 </style>
 </head>
 <body>

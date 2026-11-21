@@ -113,6 +113,9 @@ refuse("the tag as a module", "SCRIPT-TAG", tagWith(t => t.replace("<script ", '
 refuse("the boot line removed", "SCRIPT-TAG", page(/<p id="boot"[^\n]*<\/p>\n/.exec(txt("index.html"))[0], ""));
 refuse("the boot line's CSS removed", "SCRIPT-TAG", page(".boot{visibility:hidden;animation:boot 0s 4s forwards}", ""));
 refuse("the boot line's animation removed", "SCRIPT-TAG", page("@keyframes boot{to{visibility:visible}}", ""));
+// Regression: ISSUE-001 — under --skew the dead page shell showed around the boot line; only the line may show
+// Found by /qa on 2026-11-21
+refuse("the rule hiding the page shell while the boot line exists removed", "SCRIPT-TAG", page("body:has(#boot) header .row,body:has(#boot) main>:not(#boot){display:none}", ""));
 refuse("app.js changed by one byte without restamping", "SCRIPT-TAG", {"app.js": Buffer.concat([get("app.js"), B("\n")])});
 refuse("app.js no longer removing the boot line", "SCRIPT-TAG", app('document.getElementById("boot")?.remove();', ""));
 refuse("a merge conflict on the script tag", "SCRIPT-TAG", page(TAG, "<<<<<<< HEAD\n" + TAG + "\n=======\n" + TAG.replace(/v=[0-9a-f]{16}/, "v=0123456789abcdef") + "\n>>>>>>> other"));

@@ -64,7 +64,8 @@ export function scriptTag(js) {
 export const TAG_SHAPE = /^<script src="app\.js\?v=[0-9a-f]*" integrity="sha384-[A-Za-z0-9+/=]*"><\/script>$/;
 // What a phone shows when page and code don't match (D-DSR-6); app.js removes it as its first statement
 export const BOOT = '<p id="boot" class="boot" role="status">Couldn\'t start the page. You may be offline, or a new version just came out: <a href="./?r=1">Reload</a>. If this stays, try again in 10 minutes.</p>';
-export const BOOT_CSS = [".boot{visibility:hidden;animation:boot 0s 4s forwards}", "@keyframes boot{to{visibility:visible}}"];
+export const BOOT_CSS = [".boot{visibility:hidden;animation:boot 0s 4s forwards}", "@keyframes boot{to{visibility:visible}}",
+  "body:has(#boot) header .row,body:has(#boot) main>:not(#boot){display:none}"]; // while the line exists (code never ran) nothing else shows
 export const BOOT_JS = '"use strict";\ndocument.getElementById("boot")?.remove();';
 // tests/demo.mjs may read only these four files, through this one line and this one call
 const DEMO_FS = 'import {readFileSync} from "node:fs";';
