@@ -190,6 +190,14 @@ refuse("a headerless row in tests/x.mjs", "ROWS", {"tests/x.mjs": B("const a = 1
   pass("ordinary code starting with a one-letter name", {"tests/x.mjs": B("S, a, b;\nconst q = [Q, 1, 2, 3];\n")}, "ROWS");
 }
 
+// 5c. GitHub Pages publishes CLAUDE.md through Jekyll as a page on the key's address with no policy: Markdown holds no raw
+// HTML (README's plain <a id> anchors aside) and no script links (MD-HTML); code spans and fenced code are text
+for (const [f, t] of [["CLAUDE.md", "<script>x()</script>"], ["CLAUDE.md", '<img src="x.png">'], ["README.md", '<a href="#" title="x">y</a>'],
+  ["README.md", "[look](javascript:x())"], ["CLAUDE.md", "<iframe></iframe>"], ["README.md", "<!-- x --><svg></svg>"]])
+  refuse("raw HTML or a script link in " + f + ": " + t, "MD-HTML", {[f]: add(f, t)});
+pass("Markdown: tags inside code spans and fences", {"CLAUDE.md": add("CLAUDE.md", "the `<link>` tags\n```\n<script>x()</script>\n```")}, "MD-HTML");
+pass("README: a plain anchor", {"README.md": add("README.md", '| <a id="x-y"></a>X | y |')}, "MD-HTML");
+
 refuse("a token in tests/demo.mjs", "TOKEN", {"tests/demo.mjs": add("tests/demo.mjs", "// " + TOKEN)}, TOKEN);
 refuse("a token in index.html", "TOKEN", {"index.html": edit("index.html", "</body>", "<!-- " + TOKEN + " -->\n</body>")}, TOKEN);
 refuse("a token in app.js", "TOKEN", app('"use strict";\n', '"use strict";\n// ' + TOKEN + "\n"), TOKEN);
@@ -359,6 +367,10 @@ try {
     // 9. garbage input and no input
     { const r = pp("garbage\n"); ok(r.status === 1 && r.stderr.includes("pre-push: internal error") && r.stderr.includes("push refused"), "9: a garbage input line is an internal error, push refused"); }
     { const r = pp(""); ok(r.status === 1 && r.stderr.includes("no refs received"), "9: empty input is refused"); }
+    branch("c9a"); git(work, "-c", "user.name=x " + TOKEN, "commit", "-q", "--allow-empty", "-m", "clean"); const c9a = git(work, "rev-parse", "HEAD");
+    { const r = pp(line("refs/heads/c9a", c9a)); ok(r.status === 1 && r.stderr.includes("TOKEN commit " + c9a.slice(0, 7) + " author") && !r.stderr.includes(TOKEN), "9: a token in a commit's author name is refused, not echoed"); }
+    git(work, "tag", "-a", "t-" + TOKEN, "-m", "clean", c1); const tobj = git(work, "rev-parse", "t-" + TOKEN); git(work, "update-ref", "refs/tags/plain", tobj);
+    { const r = pp(line("refs/tags/plain", tobj)); ok(r.status === 1 && r.stderr.includes("TOKEN tag") && !r.stderr.includes(TOKEN), "9: a token in a tag object's own name or tagger is refused"); }
     { const r = pp(line("refs/heads/x-" + TOKEN, c1)); ok(r.status === 1 && r.stderr.includes("TOKEN a pushed ref name") && !r.stderr.includes(TOKEN), "9: a token in a pushed ref name is refused, not echoed"); }
     { const ln = join(base, "link"); symlinkSync(work, ln); // a workspace reached through a symlink must still run the check, not exit 0 silently
       const r = run(ln, process.execPath, [join(ln, "tests", "prepush.mjs"), "origin", bare], line("refs/heads/c2", b2)); ok(r.status === 1 && r.stderr.includes("ALLOWLIST"), "9: run through a symlinked folder, it still refuses"); }

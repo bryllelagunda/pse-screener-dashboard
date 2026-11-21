@@ -9,7 +9,7 @@
 //   EXT-LOAD   a script, stylesheet or resource load    LINK-TAGS   the three exact <link> tags, once each
 //   HOSTS      a host other than (api.)github.com       CSP         the one exact policy, before the one script tag
 //   SCRIPT-TAG index.html's one script tag = the one built from app.js (node tests/stamp.mjs); the boot line and its CSS
-//   INLINE-CODE an event-handler attribute (on...=) in index.html
+//   INLINE-CODE an event-handler attribute (on...=) in index.html   MD-HTML   raw HTML or a javascript: link in Markdown
 //   MANIFEST   manifest.webmanifest keys and values     ICON        icon.png: 512 x 512, under 20,000 bytes, = tests/icon.mjs
 //   PNG-CHUNKS a PNG with other chunks or extra bytes   WIREFRAME   docs/wireframe.png changed (pinned by sha256)
 //   RESULTS-SHAPED results CSV text                     TOKEN       a GitHub token shape
@@ -91,6 +91,7 @@ export function leaks(files) {
     const t = bytes.toString("utf8");
     if (path !== "tests/static.mjs") each(t, RESULTS, n => fail("RESULTS-SHAPED", path, n, "results-shaped data"));
     each(t, TOKEN, n => fail("TOKEN", path, n, "token-like string"));
+    if (/\.md$/.test(path)) mdHtml(path, t, fail);
     if (path === "tests/demo.mjs") demoRows(t, fail);
     else t.split("\n").forEach((l, i) => {
       if (ROW_START.test(l)) fail("ROWS", path, i + 1, "line starts like a stock row (symbol, then a comma)", ROW_FIX);
@@ -108,6 +109,15 @@ export function leaks(files) {
   const wf = files.find(f => f.path === "docs/wireframe.png");
   if (wf && createHash("sha256").update(wf.bytes).digest("hex") !== WIREFRAME_SHA256) fail("WIREFRAME", "docs/wireframe.png", 1, "docs/wireframe.png changed (pinned sha256)", "git checkout origin/main -- docs/wireframe.png");
   return out;
+}
+// MD-HTML: GitHub Pages runs Jekyll, which publishes Markdown (CLAUDE.md) as a page on the key's address with no policy.
+// So Markdown holds no raw HTML tag or comment (README's plain <a id="..."></a> anchors aside) and no javascript: link.
+// Code spans and fenced code are shown as text, so they are blanked first (same length, lines kept).
+function mdHtml(path, t, fail) {
+  const text = t.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, m => m.replace(/[^\n]/g, " "))
+    .replace(/(`+)[^\n]*?\1/g, m => " ".repeat(m.length)).replace(/<a id="[a-z0-9-]+"><\/a>/g, m => " ".repeat(m.length));
+  for (const re of [/<[a-z!/?]/gi, /javascript\s*:/gi]) for (const m of text.matchAll(re))
+    fail("MD-HTML", path, lineOf(text, m.index), "raw HTML or a script link in Markdown (Pages publishes it as a page)", "put it in a `code span`, or use plain Markdown");
 }
 // A commit or tag message: tokens, results text and rows (path "message", line within it)
 export function textLeaks(text) {

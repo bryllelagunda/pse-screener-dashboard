@@ -157,6 +157,11 @@ const FILES = {"results/latest.csv": "rows 2026-11-20", "results/index.json": ID
   T.hold(false); await onChange({target: {value: "2026-11-17"}}); T.release(); await slow;
   eq(T.S.cmpDate, "2026-11-17", "two Compare with… choices: the older, slower file never lands over the newer choice");
 }
+{ // A date in index.json that is not a date never goes into a request's path
+  const bad = JSON.stringify([{date: "2026-11-20", final: true}, {date: "2026-11-19/../../x", final: true}]);
+  const T = loadHarness({...FILES, "results/index.json": bad}); await T.L.loadRemote();
+  eq(T.asked.filter(f => f.includes("..")), [], "a malformed index date is never requested as the comparison");
+}
 { // A refusal that arrives after Forget key (or a new key) says nothing about the key now saved
   const T = loadHarness({...FILES, "results/2026-11-19.csv": 401}); T.hold("results/2026-11-19.csv");
   const p = T.L.loadRemote(); for (let i = 0; i < 5; i++) await tick();

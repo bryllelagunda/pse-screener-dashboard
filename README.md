@@ -213,6 +213,7 @@ Each refusal starts with its code and gives `path:line` (and the commit for hist
 | <a id="token"></a>TOKEN | a GitHub token shape | remove it; revoke the token; message on the tip: `git commit --amend -m "<new message>"` |
 | <a id="demo-rows"></a>DEMO-ROWS, <a id="demo-read"></a>DEMO-READ, <a id="demo-write"></a>DEMO-WRITE, <a id="demo-listen"></a>DEMO-LISTEN | the test server holding rows or real-looking numbers, reading other files, writing, or listening beyond 127.0.0.1 | build data in code from `DEMO` symbols |
 | <a id="manifest"></a>MANIFEST, <a id="icon"></a>ICON, <a id="png-chunks"></a>PNG-CHUNKS, <a id="wireframe"></a>WIREFRAME | the manifest, the icon or a picture changed | `node tests/icon.mjs`; `git checkout origin/main -- <file>` |
+| <a id="md-html"></a>MD-HTML | raw HTML or a `javascript:` link in a Markdown file (GitHub Pages publishes CLAUDE.md as a page on this address) | put it in a code span, or use plain Markdown |
 | <a id="tag-target"></a>TAG-TARGET | a pushed ref pointing at a tree or blob | `git tag -d <tag>`, then push again |
 | <a id="pre-push"></a>pre-push | the add-on can't run (`core.hooksPath` set, a foreign add-on, a hook without the `.local` call, no input, an internal error) | the line printed with it, then `node tests/all.mjs` |
 

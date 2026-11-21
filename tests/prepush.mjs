@@ -37,7 +37,7 @@ export function prepush(input, args, o = {}) {
       let obj = sha, type = str(["cat-file", "-t", obj]).trim();
       while (type === "tag") { // every tag message on the way down to the commit
         const body = str(["cat-file", "-p", obj]);
-        for (const e of textLeaks(body.slice(body.indexOf("\n\n") + 2))) out.push(e.code + " tag " + obj.slice(0, 7) + " message; nothing was pushed\nfix: git tag -d <tag>, make it again with a clean message (see README.md#" + e.code.toLowerCase() + ")");
+        for (const e of textLeaks(body.replace(/^object [0-9a-f]+\ntype \w+\n/, ""))) out.push(e.code + " tag " + obj.slice(0, 7) + " name, tagger or message; nothing was pushed\nfix: git tag -d <tag>, make it again with a clean name and message (see README.md#" + e.code.toLowerCase() + ")");
         obj = /^object ([0-9a-f]+)$/m.exec(body)[1]; type = str(["cat-file", "-t", obj]).trim();
       }
       if (type !== "commit") { out.push("TAG-TARGET " + ref + " points at a " + type + ", not a commit; nothing was pushed\nfix: git tag -d <tag> (or point the ref at a commit), then push again (see README.md#tag-target)"); continue; }
@@ -53,6 +53,7 @@ export function prepush(input, args, o = {}) {
           files.push({path, bytes: /^160000$/.test(mode) ? Buffer.from("") : git(["cat-file", "blob", oid])});
         }
         for (const e of leaks(files)) out.push(e.code + " commit " + short + " " + e.path + ":" + e.line + " " + e.msg + "; nothing was pushed\nfix: " + HIST_FIX + " (see README.md#" + e.code.toLowerCase() + ")");
+        for (const e of textLeaks(str(["show", "-s", "--format=%an%n%ae%n%cn%n%ce", c]))) out.push(e.code + " commit " + short + " author or committer; nothing was pushed\nfix: git commit --amend --reset-author with a clean git user.name and user.email (deeper: " + HIST_FIX + ") (see README.md#" + e.code.toLowerCase() + ")");
         const msg = str(["show", "-s", "--format=%B", c]);
         for (const e of textLeaks(msg)) out.push(e.code + " commit " + short + " message; nothing was pushed\nfix: " + (c === tip ? 'on the tip: git commit --amend -m "<new message>"' : HIST_FIX) + " (see README.md#" + e.code.toLowerCase() + ")");
       }

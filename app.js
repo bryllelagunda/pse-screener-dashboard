@@ -1043,7 +1043,7 @@ function setCompare(csv, date) {
   S.cmpRows = parseCSV(csv);
   S.cmpDate = date || csvDate(S.cmpRows) || "unknown";
 }
-const cmpOk = d => d && d !== "unknown" && S.date && d < S.date; // compare only with an earlier session
+const cmpOk = d => isDay(d) && S.date && d < S.date; // compare only with an earlier session (a real date: it goes into a file path)
 function defaultCompare() {
   const prev = S.index.find(e => e.final && cmpOk(e.date));
   return prev ? prev.date : null;
