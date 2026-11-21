@@ -22,8 +22,8 @@ text or a line that starts like a stock row inside an allowed one, or a changed 
 ## The daily summary and plain words
 
 Under any red bars, two lines sum up the selected set for the shown session: how many stocks pass, what is
-new or dropped since the compare date, and how many missed by one filter (prefixed when the data is
-provisional, from a session before a holiday, or not today's). The second line is the **market mood**: the
+new or dropped since the compare date, and how many missed by one filter (prefixed when the shown day is an
+earlier one you picked, the data is provisional, from a session before a holiday, or not today's). The second line is the **market mood**: the
 share of the whole scan above its 200-day average (weak under 35%, mixed to 65%, strong above), with the
 change since the compare date; under 50 stocks with that number it says there is not enough data. It
 describes the market; it is not a signal to buy or sell. The view chips and search sit under the summary,
@@ -64,7 +64,8 @@ is on screen, and keeps it in the same `localStorage` cache as `latest.csv`. It 
   in history, each with an S/L badge.
 - **The stock panel** opens from any table, search or list row (`?s=SYMBOL` in the address; back, ✕ or
   Esc close it): today's status and failures, Strength per preset, the last 60 sessions as S and L
-  lines (rebuilt days dimmed, "no record" days dotted), and today's numbers.
+  lines (rebuilt days dimmed, "no record" days dotted), and today's numbers (on a phone, Today % shows only
+  here, not in the table).
 - A red bar if history's rows for the shown (final) day disagree with the file.
 
 One bad row rejects the whole history file; the rest of the page keeps working.
@@ -76,6 +77,26 @@ Strict, Loose and Custom (up to 20). **Save changes**, **Rename** and **Delete**
 is selected. **Hide filters** folds away the checkboxes and sliders, leaving the set buttons and a one-line summary. Sets and the open/hidden
 choice live only in this browser's `localStorage` (`pse.screens`, `pse.filtersOpen`); nothing is sent
 anywhere, and **Forget key** leaves them in place. Shared links still carry the values, never set names.
+
+## My list and notes
+
+☆ at the start of a row, or in the stock panel, adds a stock to My list; ★ removes it. The **★ My list** chip
+shows every starred stock, even one that passes no filter: Price, **vs my buy** (change from your buy price to
+the shown day's close) and a tag: **At cut-loss** (close at or below it), **Target reached** (close at or above
+it) or **Not in this day's scan**. A computer adds Today %, My buy, Cut-loss, Target and Passes.
+**My notes** at the top of the stock panel hold a buy price, cut-loss, target (all optional; 0, below 0 or not
+a number is refused) and a note of up to 300 characters. **Save notes** also stars the stock; removing the star
+keeps the notes; **Clear notes** empties them and keeps the star. Up to 300 stocks. All of it lives only in this
+browser's `localStorage` (`pse.mine`): your phone and computer keep separate lists, nothing is sent anywhere,
+and **Forget key** leaves it in place.
+
+## Pick a day
+
+The date in the header (when more than one day is saved) opens the saved days, newest first, the latest marked.
+An earlier day shows that day's full list, chips, summary, Days on list and My list prices, compared with the
+last final day before it, under a blue bar with **Back to latest**; **Compare with…** then offers only earlier
+days, and a refresh or **Run now** updates the latest behind it. A day whose file can't load says so and keeps
+the latest on screen.
 
 ## Status bar
 
@@ -99,7 +120,8 @@ node tests/demo.mjs serve --no-key --standalone --ua iphone   # the first screen
 ```
 
 For `/qa` and `/design-review`: one server per `--day` or key state (storage is wiped once per start), at
-390 × 844 and 1280 × 800; wait for the `demo ready` line. `--port 0` picks a free port.
+390 × 844 and 1280 × 800; wait for the `demo ready` line. `--port 0` picks a free port. The `normal` day also
+lists one past day with no file, so picking it shows the "Couldn't load" bar.
 
 ## Checks
 
@@ -107,7 +129,7 @@ For `/qa` and `/design-review`: one server per `--day` or key state (storage is 
 node tests/all.mjs                                     # every check below that CI runs, with a table: run it before every push
 node tests/static.mjs                                  # size, exact CSP, file allowlist, the 3 <link> tags, manifest, icon, no data, rows or tokens (CI)
 node tests/guards.mjs                                  # refusal tests: each guard in static.mjs refuses its crafted input (CI)
-node tests/screens.mjs                                 # saved sets: storage cleaning, name rules, panel summary (CI)
+node tests/screens.mjs                                 # saved sets (storage cleaning, name rules, panel summary), My list stars and notes, Pick a day (CI)
 node tests/status.mjs                                  # status bar: missed-run rule (CI)
 node tests/history.mjs                                 # history file checks, Days on list, streaks, Knocking, disagreement (CI)
 node tests/key.mjs                                     # key end date, reminder bars, Later, refused vs rate limit (CI)

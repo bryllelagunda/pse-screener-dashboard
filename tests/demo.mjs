@@ -111,8 +111,10 @@ export function dataset(P, day, now) {
   const index = [{date, final: day !== "provisional", scanned: 60, fetch_failed: 3, finished_at: now.toISOString()}];
   if (day === "provisional") index.push({date: prev, final: true, scanned: 60, fetch_failed: 3, finished_at: now.toISOString()});
   if (day !== "no-compare") for (const d of older.slice(0, 5)) if (!index.some(e => e.date === d)) index.push({date: d, final: true, scanned: 60, fetch_failed: 3});
-  const files = {"results/latest.csv": shown.csv, "results/index.json": JSON.stringify(index)};
+  const files = {"results/latest.csv": shown.csv};
   for (const e of index.slice(1)) files["results/" + e.date + ".csv"] = results(P, day, e === index[1] ? "compare" : "today", e.date).csv;
+  if (day === "normal") index.push({date: older[5], final: true, scanned: 60, fetch_failed: 3}); // listed with no file: Pick a day's "Couldn't load"
+  files["results/index.json"] = JSON.stringify(index);
   const st = {state: "ok", attempted_at: now.toISOString(), trigger: "schedule", slot: "morning", expected_date: day === "provisional" ? prev : late ? prev : date};
   if (day === "holiday") st.state = "holiday";
   if (day === "stale") Object.assign(st, {state: "no_new_session", data_date: date});
