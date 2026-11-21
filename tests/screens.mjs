@@ -7,7 +7,7 @@
 //   fails_when=a corrupt or tampered entry loads, a good entry is dropped, a duplicate or 21st name is accepted,
 //   a rename to itself is refused, the summary misstates a filter, a 0 or negative price saves, a tag is off by the
 //   edge, storage full changes the list, the new storage touches the key, the cache or saved sets, or a refresh,
-//   a failed day file or Forget key leaves the wrong day on screen;
+//   a failed day file or Forget key leaves the wrong day on screen, or an earlier day's failed compare file says nothing;
 //   no_claim=buttons, the name box, URL restore, the panel toggle, the day menu and the panel's note boxes on screen
 //   (checked by /qa with tests/demo.mjs).
 import {readFileSync} from "node:fs";
@@ -161,6 +161,24 @@ for (const [what, file, why] of [["missing", undefined, "no file for that day"],
   const T = mkDay({"results/2026-11-17.csv": file});
   await T.pickDay("2026-11-17");
   eq([T.S.rows, T.S.date, T.latest(), T.S.dayMsg, !!T.S.authErr], ["rows 20", "2026-11-20", null, {fail: "2026-11-17", why}, what === "refused"], "a " + what + " day file says so and keeps the latest on screen");
+}
+// An earlier day whose compare file fails (plan § 5.3): that day on screen, no comparison, and a message naming why
+for (const [what, file, why] of [["missing", undefined, "no file for that day"], ["timed out", new Error("results/2026-11-13.csv: no answer in 30 seconds"), "results/2026-11-13.csv: no answer in 30 seconds"], ["refused", new AuthErr(), "GitHub didn't accept the key"]]) {
+  const T = mkDay({"results/2026-11-17.csv": "rows 2026-11-17", "results/2026-11-13.csv": file});
+  await T.pickDay("2026-11-17");
+  eq([T.S.date, T.S.cmpRows, T.S.dayMsg, !!T.S.authErr], ["2026-11-17", null, {nocmp: "2026-11-13", why}, what === "refused"], "an earlier day whose compare file is " + what + " says so");
+  T.backToLatest();
+  eq(T.S.dayMsg, null, "Back to latest clears the compare message (" + what + ")");
+}
+{
+  const T = mkDay({"results/2026-11-13.csv": "rows 2026-11-13"});
+  await T.pickDay("2026-11-13");
+  eq([T.S.date, T.S.cmpRows, T.S.dayMsg ?? null], ["2026-11-13", null, null], "an earlier day with no final day before it: no comparison and no message");
+}
+{
+  const T = mkDay({"results/2026-11-17.csv": "rows 2026-11-17"});
+  await T.pickDay("2026-11-17"); Object.assign(T.S, {key: ""}); T.dropDay();
+  eq(T.S.dayMsg, null, "Forget key clears the compare message");
 }
 {
   const T = mkDay({"results/2026-11-19.csv": "rows 2026-11-19", "results/2026-11-17.csv": "rows 2026-11-17"});

@@ -149,6 +149,27 @@ refuse("a results header in tests/x.mjs", "RESULTS-SHAPED", {"tests/x.mjs": B("/
 refuse("pass columns in README.md", "RESULTS-SHAPED", {"README.md": add("README.md", PASSES)}, PASSES);
 refuse("a headerless row in README.md", "ROWS", {"README.md": add("README.md", ROW)}, ROW);
 refuse("a headerless row in tests/x.mjs", "ROWS", {"tests/x.mjs": B("const a = 1;\n" + ROW + "\n")}, ROW);
+// 5b. A price row anywhere in a line (plan § 4.1): quoted, as JSON, after code, or split by tabs, ; or |; and space-separated
+{ const Q3 = String.fromCharCode(81, 81, 88), Q1 = "Q", D = DATE, ZZ = ["Z", "Z", "A"].join("");
+  const shapes = s => [["plain", [s, D, "41.2", "3.1", "88000"].join(",")], ["after code", "const x = 1; " + [s, D, "41.2", "3.1", "88000"].join(",")],
+    ["double-quoted", [s, D, "41.2", "3.1", "88000"].map(c => '"' + c + '"').join(",")], ["single-quoted", [s, D, "41.2", "3.1", "88000"].map(c => "'" + c + "'").join(",")],
+    ["JSON object", JSON.stringify({symbol: s, data_date: D, close: 41.2, chg_pct: 3.1, value_today: 88000})], ["JSON array", JSON.stringify([s, D, 41.2, 3.1, 88000])],
+    ["JS object", "{symbol: '" + s + "', data_date: '" + D + "', close: 41.2, chg_pct: 3.1, value: 88000}"], ["tab-separated", [s, D, "41.2", "3.1", "88000"].join("\t")],
+    ["semicolon-separated", [s, D, "41.2", "3.1", "88000"].join(";")], ["pipe-separated", [s, D, "41.2", "3.1", "88000"].join("|")],
+    ["Markdown table row", "| " + [s, D, "41.2", "3.1", "88000"].join(" | ") + " |"],
+    ["space-separated", [s, D, "41.2", "3.1", "88000"].join(" ")], ["space-separated with a two-word name", [s, "Made Up", D, "41.2", "3.1", "88000"].join(" ")]];
+  for (const [what, row] of shapes(Q3)) {
+    refuse("a row (" + what + ") in README.md", "ROWS", {"README.md": add("README.md", row)}, row);
+    refuse("a row (" + what + ") in app.js", "ROWS", app('const OWNER = "', "// " + row + '\nconst OWNER = "'), row);
+    refuse("a row (" + what + ") in tests/x.mjs", "ROWS", {"tests/x.mjs": B("const a = 1;\n" + row + "\n")}, row);
+  }
+  for (const [what, row] of shapes(Q1).filter(([w]) => ["plain", "JSON object", "JSON array", "space-separated"].includes(w)))
+    refuse("a one-letter symbol's row (" + what + ") in README.md", "ROWS", {"README.md": add("README.md", row)}, row);
+  for (const [what, row] of shapes(ZZ)) pass("a made-up ZZ symbol's row (" + what + ")", {"README.md": add("README.md", row)}, "ROWS");
+  pass("a dated note that is not a row", {"README.md": add("README.md", "T-23 " + D + " shipped 3 of 4 items")}, "ROWS");
+  pass("ordinary code starting with a one-letter name", {"tests/x.mjs": B("S, a, b;\nconst q = [Q, 1, 2, 3];\n")}, "ROWS");
+}
+
 refuse("a token in tests/demo.mjs", "TOKEN", {"tests/demo.mjs": add("tests/demo.mjs", "// " + TOKEN)}, TOKEN);
 refuse("a token in index.html", "TOKEN", {"index.html": edit("index.html", "</body>", "<!-- " + TOKEN + " -->\n</body>")}, TOKEN);
 refuse("a token in app.js", "TOKEN", app('"use strict";\n', '"use strict";\n// ' + TOKEN + "\n"), TOKEN);
@@ -160,6 +181,10 @@ refuse("demo: a quoted CSV row", "DEMO-ROWS", demo('"' + ROW + '"'), ROW);
 refuse("demo: an indented CSV row", "DEMO-ROWS", demo("    " + ROW), ROW);
 refuse("demo: a quoted row of cells", "DEMO-ROWS", demo(ROW.split(",").map(c => '"' + c + '"').join(",")));
 refuse("demo: a row written as an object", "DEMO-ROWS", demo('const r = {s: "ZQX", c: 41.2};'));
+refuse("demo: real-looking numbers beside a DEMO symbol (array)", "DEMO-ROWS", demo('const r = ["DEMOA", 41.2, 3.1, 88000000];'));
+refuse("demo: real-looking numbers beside a DEMO symbol (object)", "DEMO-ROWS", demo('const r = {symbol: "DEMOB", close: 41.2, chg_pct: 3.1};'));
+pass("demo: DEMO symbols with no numbers", demo('const r = ["DEMOA", "DEMOB"];'), "DEMO-ROWS");
+pass("demo: a DEMO symbol with one number", demo('const r = pick("DEMOC", 1);'), "DEMO-ROWS");
 refuse("demo: eight commas of numbers", "DEMO-ROWS", demo("const a = [" + Array.from({length: 9}, (_, i) => i + 1.5).join(", ") + "];"));
 refuse("demo: writeFile", "DEMO-WRITE", demo('writeFile' + 'Sync("x.csv", "y");'));
 refuse("demo: createWriteStream", "DEMO-WRITE", demo('const w = createWrite' + 'Stream("x.csv");'));
@@ -189,6 +214,14 @@ refuse("the key in the address", "KEY-BLOCK", app('  p.set("p", S.preset);', '  
 refuse("Forget key leaving keyNag", "KEY-BLOCK", app('store.del("keyExp"); store.del("keyNag"); store.del("cache");', 'store.del("keyExp"); store.del("cache");'));
 refuse("KEY markers removed", "KEY-BLOCK", app("/* KEY-START", "/* KEYS-START"));
 refuse("keyExp in index.html", "KEY-BLOCK", page("</main>", '<p data-x="keyExp">x</p>\n</main>'));
+// 8b. The key is used only as a yes/no check, saved and forgotten in one place each, and sent only in gh()'s header (KEY-USE)
+const IN = "function el(tag, props, ...kids) {", inEl = s => app(IN, IN + "\n  " + s + ";");
+for (const s of ['location.assign("https://github.com/?k=" + S.key)', "window.open(u)", 'el("a", {href: "https://github.com/?k=" + S.key})', 'fetch(API + "?k=" + S.key)',
+  'const k = store.get("key", "")', 'localStorage.getItem("key")', "location.replace(u)", 'location.href = "https://github.com/"', "document.location = u", "send(S.key)",
+  'store.set("key", "x")', "S.key = u", "const {key} = S", 'const k = S["key"]'])
+  refuse("code: " + s, "KEY-USE", inEl(s));
+for (const s of ["window.open(u)", "localStorage.getItem(k)", "S.key"]) refuse("markup: " + s, "KEY-USE", page("</main>", "<!-- " + s + " -->\n</main>"));
+for (const s of ["if (!S.key) return", "const t = S.key ? 1 : 2", "const ok = S.key && S.rows", "const k = !!S.key || 0", "if (S.rows && S.key) f()"]) pass("code: " + s, inEl(s), "KEY-USE");
 refuse("KEY markers in index.html", "KEY-BLOCK", page("</style>", "/* KEY-START */ /* KEY-END */\n</style>"));
 
 // 9. The test server refuses to start without exactly one CSP meta tag, loads its fakes by a tag, and answers 404 beyond its files
