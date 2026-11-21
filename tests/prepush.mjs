@@ -27,11 +27,12 @@ export function prepush(input, args, o = {}) {
     const refs = lines.map(l => {
       const f = l.split(" ");
       if (f.length !== 4 || !SHA.test(f[1]) || !SHA.test(f[3])) throw new Error("an input line is not <local ref> <local sha> <remote ref> <remote sha>");
-      return {ref: f[0], sha: f[1]};
+      return {ref: f[0], sha: f[1], dest: f[2]};
     });
     const remote = args[0] || "", named = remote && str(["remote"]).split("\n").includes(remote);
     const out = [], seen = new Set();
-    for (const {ref, sha} of refs) {
+    for (const {ref, sha, dest} of refs) {
+      for (const e of textLeaks(ref + "\n" + dest)) out.push(e.code + " a pushed ref name; nothing was pushed\nfix: rename the branch or tag (git branch -m <new name>), then push again (see README.md#" + e.code.toLowerCase() + ")");
       if (ZERO.test(sha)) continue; // a deletion sends nothing
       let obj = sha, type = str(["cat-file", "-t", obj]).trim();
       while (type === "tag") { // every tag message on the way down to the commit

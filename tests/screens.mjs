@@ -123,7 +123,7 @@ eq([...before].filter(([k, v]) => LS.getItem(k) !== v), [], "the key, its date, 
 eq(["mine"].filter(n => keyBlock.includes('"' + n + '"')), [], "Forget key (the KEY block) never names My list's storage");
 
 // ---------------------------------------------------------------- Pick a day (DAY)
-const D = new Function("isDay", "fileText", "AuthError", "setCurrent", "setCompare", "renderAll", "renderBars", "S",
+const D = new Function("isDay", "fileText", "AuthError", "setCurrent", "setCompare", "renderAll", "renderBars", "S", "gen",
   block("/* DAY-START", "/* DAY-END */") + "; return {dayList, onLatest, backToLatest, dropDay, pickDay, latest: () => LATEST};");
 class AuthErr extends Error {}
 const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
@@ -133,7 +133,7 @@ const mkDay = files => {
   const fileText = async p => { asked.push(p); const v = files[p]; if (v instanceof Error) throw v; return v === undefined ? null : v; };
   const setCurrent = csv => { S.rows = csv; S.date = csv.slice(5); S.meta = S.index.find(e => e.date === S.date) || null; };
   const setCompare = (csv, d) => { S.cmpRows = csv || null; S.cmpDate = csv ? d : null; };
-  return {S, asked, ...D(isDay, fileText, AuthErr, setCurrent, setCompare, () => {}, () => {}, S)};
+  return {S, asked, ...D(isDay, fileText, AuthErr, setCurrent, setCompare, () => {}, () => {}, S, 0)}; // gen: the key's load counter (LOAD block)
 };
 eq(mkDay({}).dayList([{date: "2026-11-17"}, {date: "2026-11-20"}, {date: "2026-11-17"}, {date: "bad"}, {date: "2026-11-19", final: false}], "2026-11-20"),
   [{date: "2026-11-20", latest: true, prov: false}, {date: "2026-11-19", latest: false, prov: true}, {date: "2026-11-17", latest: false, prov: false}], "every saved day once, newest first, the latest marked");

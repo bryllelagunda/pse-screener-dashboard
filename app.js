@@ -518,22 +518,23 @@ const dropDay = () => { if (!S.key) { LATEST = S.dayMsg = null; dgen++; } }; // 
 async function pickDay(d) {
   if (d === latestDate()) { backToLatest(); return renderAll(); }
   if (LATEST && d === S.date) { if (S.dayMsg && S.dayMsg.wait) { dgen++; S.dayMsg = null; renderBars(); } return; } // cancels only a day still loading
-  const my = ++dgen, get = f => fileText("results/" + f + ".csv");
+  const my = ++dgen, kg = gen, get = f => fileText("results/" + f + ".csv"); // kg: a refusal counts only for the key it was sent with
   S.dayMsg = {wait: d}; renderBars();
   try {
     const csv = await get(d);
     if (my !== dgen) return;
     if (!csv) throw new Error("no file for that day");
     const cd = S.index.filter(e => e.final === true && isDay(e.date) && e.date < d).map(e => e.date).sort().pop() || null;
-    let why = null; // the compare file failed: that day shows without a comparison, and the bar says why
+    let why = null, auth = false; // the compare file failed: that day shows without a comparison, and the bar says why
     const ccsv = cd ? await get(cd).then(t => { if (!t) why = "no file for that day"; return t; },
-      e => { if (e instanceof AuthError) S.authErr = true; why = e instanceof AuthError ? "GitHub didn't accept the key" : e.message || "no answer"; return null; }) : null;
+      e => { auth = e instanceof AuthError; why = auth ? "GitHub didn't accept the key" : e.message || "no answer"; return null; }) : null;
     if (my !== dgen) return;
+    if (auth && kg === gen) S.authErr = true;
     if (!LATEST) LATEST = fields();
     setCurrent(csv); setCompare(ccsv, cd); S.dayMsg = why ? {nocmp: cd, why} : null;
   } catch (e) {
     if (my !== dgen) return;
-    if (e instanceof AuthError) S.authErr = true;
+    if (e instanceof AuthError && kg === gen) S.authErr = true;
     backToLatest(); S.dayMsg = {fail: d, why: e instanceof AuthError ? "GitHub didn't accept the key" : e.message || "no answer"};
   }
   renderAll();
@@ -1084,9 +1085,10 @@ async function loadRemote() {
     const cd = onLatest(() => { setCurrent(csv); return cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare(); });
     S.updated = Date.now(); S.cached = false; S.msg = null;
     // A compare file that fails, times out or refuses the key never fails the main load: the fresh results still show and save
-    let cfail = false; // a failed compare file keeps the comparison already shown (and saved), never erases it
-    const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { if (e instanceof AuthError) S.authErr = true; cfail = true; return null; }) : null;
-    if (my !== gen) return;
+    let cfail = false, cauth = false; // a failed compare file keeps the comparison already shown (and saved), never erases it
+    const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { cauth = e instanceof AuthError; cfail = true; return null; }) : null;
+    if (my !== gen) return; // a load for a key since forgotten or replaced says nothing about the new one
+    if (cauth) S.authErr = true;
     const kept = onLatest(() => { const k = cfail && S.cmpRows ? (store.get("cache", null) || {}).cmp || null : null; if (!cfail || !S.cmpRows) setCompare(ccsv, cd); return k; });
     saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : kept, at: S.updated});
     checkFixture(my);
@@ -1413,12 +1415,13 @@ function init() {
   $("run").addEventListener("click", runNow);
   // A hand-picked comparison on the latest day is also the saved copy's, so a later failed compare file keeps this one (T-28)
   const keepCmp = cmp => { const c = !LATEST && store.get("cache", null); if (c) saveCache({...c, cmp}); };
+  let cgen = 0; // each Compare with… choice bumps it, so an older, slower file never lands over a newer choice
   $("cmp").addEventListener("change", async e => {
-    const v = e.target.value, my = dgen; // a day picked meanwhile wins
+    const v = e.target.value, my = dgen, mine = ++cgen, kg = gen; // a day picked meanwhile wins
     if (S.dayMsg && S.dayMsg.nocmp) S.dayMsg = null; // a comparison picked by hand replaces "without a comparison"
     if (!v) { setCompare(null); keepCmp(null); renderAll(); return; }
-    try { const t = await fileText("results/" + v + ".csv"); if (my !== dgen) return; setCompare(t, v); keepCmp(t ? {date: v, csv: t} : null); }
-    catch (err) { if (my !== dgen) return; if (err instanceof AuthError) S.authErr = true; setCompare(null); }
+    try { const t = await fileText("results/" + v + ".csv"); if (my !== dgen || mine !== cgen) return; setCompare(t, v); keepCmp(t ? {date: v, csv: t} : null); }
+    catch (err) { if (my !== dgen || mine !== cgen) return; if (err instanceof AuthError && kg === gen) S.authErr = true; setCompare(null); }
     renderAll();
   });
   const days = $("days"), setDays = open => {

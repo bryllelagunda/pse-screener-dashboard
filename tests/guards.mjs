@@ -36,6 +36,7 @@ function refuse(what, code, changes, secret) {
 const edit = (p, a, b) => { const t = txt(p); if (!t.includes(a)) throw new Error(`guards.mjs: "${a.slice(0, 40)}" not found in ${p}`); return B(t.replace(a, b)); };
 const add = (p, line) => B(txt(p) + "\n" + line + "\n");
 const page = (a, b) => ({"index.html": edit("index.html", a, b)}); // F: a change to the markup file
+const TAG0 = () => scriptTag(get("app.js"));
 const app = (a, b) => ({"app.js": edit("app.js", a, b)}); // A: a change to the code file (its tag goes stale too; each case names its own code)
 function pass(what, changes, code) { // the change must not trip this code (nothing at all when code is omitted)
   n++; const r = scan(tree(changes)).filter(e => !code || e.code === code);
@@ -79,13 +80,19 @@ refuse("a protocol-relative address in the page", "HOSTS", page("</main>", '<p t
 refuse("a protocol-relative address in the code", "HOSTS", app('const OWNER = "', 'const X = "//cdn.example/x.js";\nconst OWNER = "'));
 refuse("a websocket in the code", "HOSTS", app('const OWNER = "', 'const X = "wss://x";\nconst OWNER = "'));
 refuse("an added img-src * in the CSP", "CSP", page("form-action 'none'\">", "form-action 'none'; img-src *\">"));
+{ const csp = txt("index.html").match(/<meta\s+http-equiv="Content-Security-Policy"[^>]*>/)[0];
+  refuse("the CSP inside a comment", "CSP", page(csp, "<!-- " + csp + " -->"));
+  refuse("the CSP moved into the body", "CSP", {"index.html": B(txt("index.html").replace(csp + "\n", "").replace("<body>", "<body>\n" + csp))});
+  refuse("the script tag inside a comment", "SCRIPT-TAG", page(TAG0(), "<!-- " + TAG0() + " -->"));
+  refuse("the boot line inside a comment", "SCRIPT-TAG", page(/<p id="boot"[^\n]*<\/p>/.exec(txt("index.html"))[0], "<!-- " + /<p id="boot"[^\n]*<\/p>/.exec(txt("index.html"))[0] + " -->"));
+}
 refuse("the old policy with 'unsafe-inline' scripts", "CSP", page("script-src 'self';", "script-src 'self' 'unsafe-inline';"));
 { const html = txt("index.html"), csp = html.match(/<meta\s+http-equiv="Content-Security-Policy"[^>]*>\n/)[0];
   refuse("the CSP after the script tag", "CSP", {"index.html": B(html.replace(csp, "").replace("</body>", csp + "</body>"))}); }
 refuse("innerHTML in the page", "UNSAFE-DOM", page("</main>", '<p title="innerHTML">x</p>\n</main>'));
 refuse("innerHTML in the code", "UNSAFE-DOM", app("function el(tag, props, ...kids) {", "function el(tag, props, ...kids) {\n  document.body.innerHTML = tag;"));
 for (const s of ['createElement("script")', "createElement('script')", "createElement(`script`)", 'createElement( "script" )', 'createElementNS(ns, "script")',
-  'import("./x.js")', 'new Worker("w.js")', 'importScripts("w.js")'])
+  'import("./x.js")', 'new Worker("w.js")', 'importScripts("w.js")', 'el("script", {src: "x.js"})', "const t = 'SCRIPT'"])
   refuse("the code making or loading a script: " + s, "UNSAFE-DOM", app("function el(tag, props, ...kids) {", "function el(tag, props, ...kids) {\n  " + s + ";"));
 refuse("index.html over 40 KB", "SIZE", page("</body>", "<!-- " + "x".repeat(40 * 1024) + " -->\n</body>"));
 refuse("app.js over 160 KB", "SIZE", app('"use strict";\n', '"use strict";\n/* ' + "x".repeat(160 * 1024) + " */\n"));
@@ -227,10 +234,10 @@ refuse("keyExp in index.html", "KEY-BLOCK", page("</main>", '<p data-x="keyExp">
 const IN = "function el(tag, props, ...kids) {", inEl = s => app(IN, IN + "\n  " + s + ";");
 for (const s of ['location.assign("https://github.com/?k=" + S.key)', "window.open(u)", 'el("a", {href: "https://github.com/?k=" + S.key})', 'fetch(API + "?k=" + S.key)',
   'const k = store.get("key", "")', 'localStorage.getItem("key")', "location.replace(u)", 'location.href = "https://github.com/"', "document.location = u", "send(S.key)",
-  'store.set("key", "x")', "S.key = u", "const {key} = S", 'const k = S["key"]'])
+  'store.set("key", "x")', "S.key = u", "const {key} = S", 'const k = S["key"]', 'fetch("https://api.github.com/x?k=" + (S.key || ""))', "send(S.rows && S.key)", "const k = S.key || x"])
   refuse("code: " + s, "KEY-USE", inEl(s));
 for (const s of ["window.open(u)", "localStorage.getItem(k)", "S.key"]) refuse("markup: " + s, "KEY-USE", page("</main>", "<!-- " + s + " -->\n</main>"));
-for (const s of ["if (!S.key) return", "const t = S.key ? 1 : 2", "const ok = S.key && S.rows", "const k = !!S.key || 0", "if (S.rows && S.key) f()"]) pass("code: " + s, inEl(s), "KEY-USE");
+for (const s of ["if (!S.key) return", "const t = S.key ? 1 : 2", "const ok = S.key && S.rows", "const k = !!S.key || 0", "if (S.rows && S.key) f()", "while (x || S.key) f()"]) pass("code: " + s, inEl(s), "KEY-USE");
 refuse("KEY markers in index.html", "KEY-BLOCK", page("</style>", "/* KEY-START */ /* KEY-END */\n</style>"));
 
 // 9. The test server refuses to start without exactly one CSP meta tag, loads its fakes by a tag, and answers 404 beyond its files
@@ -313,7 +320,12 @@ try {
     writeFileSync(H("pre-push.local"), HOOK_LOCAL, {mode: 0o755});
     const mainHook = keep("pre-push"); writeFileSync(H("pre-push"), "#!/bin/sh\nexit 0\n", {mode: 0o755});
     { const r = eh(); ok(!r.ok && r.msg.includes("does not call pre-push.local") && keep("pre-push") === "#!/bin/sh\nexit 0\n", "7: a pre-push without the .local call is refused and kept"); }
+    writeFileSync(H("pre-push"), "#!/bin/sh\n# runs pre-push.local\nexit 0\n", {mode: 0o755});
+    { const r = eh(); ok(!r.ok && r.msg.includes("does not call pre-push.local"), "7: a pre-push naming pre-push.local only in a comment is refused"); }
     writeFileSync(H("pre-push"), mainHook, {mode: 0o755});
+    writeFileSync(H("pre-push.local"), "#!/bin/sh\n# pse-screener-dashboard before-push check v9 (x)\nexit 0\n", {mode: 0o755});
+    { const r = eh(); ok(!r.ok && keep("pre-push.local").includes("exit 0"), "7: a higher-version marker that never runs the checker is refused, not trusted"); }
+    writeFileSync(H("pre-push.local"), HOOK_LOCAL, {mode: 0o755});
     git(work, "config", "core.hooksPath", "elsewhere");
     { const r = eh(); ok(!r.ok && r.msg.includes("(local config)") && r.msg.includes("git config --unset core.hooksPath"), "7: core.hooksPath in local config is refused with its unset"); }
     git(work, "config", "--unset", "core.hooksPath"); git(work, "config", "extensions.worktreeConfig", "true"); git(work, "config", "--worktree", "core.hooksPath", "elsewhere");
@@ -325,6 +337,8 @@ try {
     const om = git(work, "rev-parse", "refs/remotes/origin/main"); git(work, "update-ref", "refs/remotes/origin/main", c7);
     { const r = run(work, "sh", [H("pre-push.local"), "origin", bare], line("refs/heads/c7", c7)); ok(r.status === 0 && r.stderr.includes("warning"), "7: before the release (or after a revert) it only warns"); }
     git(work, "update-ref", "refs/remotes/origin/main", om);
+    branch("c7e"); const c7e = commit("empty checker", {"tests/prepush.mjs": ""});
+    { const r = run(work, "sh", [H("pre-push.local"), "origin", bare], line("refs/heads/c7e", c7e)); ok(r.status === 1 && r.stderr.includes("did not report a check"), "7: an empty tests/prepush.mjs is refused, never a silent pass"); }
     // 8. a real git push through the hooks: the leaking branch never arrives, the clean one does
     git(work, "checkout", "-q", "c2");
     { const r = run(work, "git", ["push", "-q", "origin", "c2"]); ok(r.status !== 0 && run(base, "git", ["--git-dir", bare, "cat-file", "-e", a2]).status !== 0, "8: git push refuses the leaking branch and the remote lacks its commits"); }
@@ -333,6 +347,7 @@ try {
     // 9. garbage input and no input
     { const r = pp("garbage\n"); ok(r.status === 1 && r.stderr.includes("pre-push: internal error") && r.stderr.includes("push refused"), "9: a garbage input line is an internal error, push refused"); }
     { const r = pp(""); ok(r.status === 1 && r.stderr.includes("no refs received"), "9: empty input is refused"); }
+    { const r = pp(line("refs/heads/x-" + TOKEN, c1)); ok(r.status === 1 && r.stderr.includes("TOKEN a pushed ref name") && !r.stderr.includes(TOKEN), "9: a token in a pushed ref name is refused, not echoed"); }
     { const ln = join(base, "link"); symlinkSync(work, ln); // a workspace reached through a symlink must still run the check, not exit 0 silently
       const r = run(ln, process.execPath, [join(ln, "tests", "prepush.mjs"), "origin", bare], line("refs/heads/c2", b2)); ok(r.status === 1 && r.stderr.includes("ALLOWLIST"), "9: run through a symlinked folder, it still refuses"); }
     // 10. a merge whose resolution adds a results file, then a deletion; an orphan branch whose first commit adds one

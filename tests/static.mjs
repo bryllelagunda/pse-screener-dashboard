@@ -54,7 +54,7 @@ export function rowAt(l) {
 }
 const ROW_FIX = "if this is not price data, drop the date or move the numbers off the line; made-up symbols: DEMO…, ZZ…, SYN";
 const DEMO_OK = new Set(["GET", "POST", "PUT", "OK", "UTC", "PSE", "CSV", "PNG"]);
-const UNSAFE = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|srcdoc|setAttribute\(\s*["'`]on|javascript:|set(Timeout|Interval)\(\s*["'`]|\.src\s*=|createElement(NS)?\s*\([^)]*["'`]script["'`]|\bimport\s*\(|new\s+(Shared)?Worker\b|importScripts/i;
+const UNSAFE = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|srcdoc|setAttribute\(\s*["'`]on|javascript:|set(Timeout|Interval)\(\s*["'`]|\.src\s*=|createElement(NS)?\s*\([^)]*["'`]script["'`]|["'`]\s*script\s*["'`]|\bimport\s*\(|new\s+(Shared)?Worker\b|importScripts/i;
 // The one way code reaches the page: this tag, built from the tracked app.js bytes (node tests/stamp.mjs writes it)
 export function scriptTag(js) {
   const h = createHash("sha384").update(js);
@@ -148,16 +148,21 @@ function png(path, b, fail) {
   if (TOKEN.test(raw)) fail("TOKEN", path, 1, "token-like string inside a picture");
 }
 
-function page(html, jsBytes, fail, lineOf) {
+function page(raw, jsBytes, fail, lineOf) {
   const H = "index.html", A = "app.js", js = jsBytes ? jsBytes.toString("utf8") : "";
-  const files = [[H, html]].concat(jsBytes ? [[A, js]] : []);
-  for (const [P, t, max] of [[H, html, 40], [A, js, 160]]) {
+  // The markup as the browser reads it: <!-- comments --> blanked (same length, so lines stay), so a policy, the tag or
+  // the boot line inside a comment counts as missing
+  const html = raw.replace(/<!--[\s\S]*?(-->|$)/g, m => m.replace(/[^\n]/g, " "));
+  const files = [[H, raw]].concat(jsBytes ? [[A, js]] : []);
+  for (const [P, t, max] of [[H, raw, 40], [A, js, 160]]) {
     const size = Buffer.byteLength(t);
     if (size >= max * 1024) fail("SIZE", P, 1, P + " is " + size + " bytes (limit " + max + " KB)", "move code to app.js or styles out of the markup; a raise is a plan decision");
   }
   // CSP: one exact policy, before the one script tag
   const csps = [...html.matchAll(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/gi)], first = html.search(/<script/i);
-  if (csps.length !== 1 || csps[0][1] !== CSP) fail("CSP", H, csps.length ? lineOf(html, csps[0].index) : 1, "CSP meta tag missing, duplicated or changed", "restore it from git show origin/main:index.html");
+  const head = [html.indexOf("<head>"), html.indexOf("</head>")];
+  if (csps.length !== 1 || csps[0][1] !== CSP) fail("CSP", H, csps.length ? lineOf(html, csps[0].index) : 1, "CSP meta tag missing, duplicated, changed or inside a comment", "restore it from git show origin/main:index.html");
+  else if (head[0] < 0 || csps[0].index < head[0] || csps[0].index > head[1]) fail("CSP", H, lineOf(html, csps[0].index), "CSP meta tag must be inside <head>", "move it back into the head");
   else if (first >= 0 && csps[0].index > first) fail("CSP", H, lineOf(html, csps[0].index), "CSP meta tag must come before the script tag", "move the CSP meta tag back into the head, above the script tag");
   // SCRIPT-TAG: exactly one <script, equal to the tag built from app.js, last before </body>; the boot line and its CSS once each
   const tags = [...html.matchAll(/<script/gi)], want = jsBytes ? scriptTag(jsBytes) : null;
@@ -195,7 +200,7 @@ function page(html, jsBytes, fail, lineOf) {
   }
   for (const [P, t] of files) { const u = UNSAFE.exec(t); if (u) fail("UNSAFE-DOM", P, lineOf(t, u.index), "unsafe DOM write, eval, script URL, script element or code load found", "build elements with el() and textContent"); }
   // LINK-TAGS and EXT-LOAD: index.html minus the three links and the one script tag, and all of app.js
-  let rest = html;
+  let rest = raw;
   for (const tag of LINKS) {
     const n = html.split(tag).length - 1;
     if (n !== 1) fail("LINK-TAGS", H, 1, "each of the three allowed <link> tags must appear exactly once (found " + n + ")");
@@ -214,9 +219,9 @@ function page(html, jsBytes, fail, lineOf) {
     for (const re of [/demo/i, /serviceWorker/, /caches\./]) { const m = re.exec(t); if (m) fail("PAGE-DEMO", P, lineOf(t, m.index), "the page must not hold demo code, a service worker or a cache store"); }
   }
   // KEY-BLOCK: the key's end date is read and written only inside KEY-START ... KEY-END (in app.js), which sends nothing
-  const km = /\/\* KEY-(START|END)/.exec(html); if (km) fail("KEY-BLOCK", H, lineOf(html, km.index), "KEY markers belong in app.js only", "move the KEY block back to app.js");
-  const ke = /keyExp/.exec(html); if (ke) fail("KEY-BLOCK", H, lineOf(html, ke.index), "keyExp used outside the KEY block", "read the end date only inside app.js's KEY block");
-  keyUse(html, jsBytes ? js : null, fail, lineOf);
+  const km = /\/\* KEY-(START|END)/.exec(raw); if (km) fail("KEY-BLOCK", H, lineOf(raw, km.index), "KEY markers belong in app.js only", "move the KEY block back to app.js");
+  const ke = /keyExp/.exec(raw); if (ke) fail("KEY-BLOCK", H, lineOf(raw, ke.index), "keyExp used outside the KEY block", "read the end date only inside app.js's KEY block");
+  keyUse(raw, jsBytes ? js : null, fail, lineOf);
   if (!jsBytes) return;
   const a = js.indexOf("/* KEY-START"), b = js.indexOf("/* KEY-END */");
   if (a < 0 || b < a || js.indexOf("/* KEY-START", a + 1) >= 0 || js.indexOf("/* KEY-END */", b + 1) >= 0) { fail("KEY-BLOCK", A, 1, "KEY-START / KEY-END markers missing or repeated"); return; }
@@ -234,6 +239,14 @@ function page(html, jsBytes, fail, lineOf) {
 // header, read from and written to storage once each; localStorage only inside store; no navigation call at all (connect-src
 // stops requests, not a navigation, a link or a new window). index.html holds none of it.
 const SINKS = /\blocation\s*\.\s*(assign|replace)\s*\(|\blocation\s*\.\s*href\s*=(?!=)|\blocation\s*=(?!=)|\bdocument\s*\.\s*location\b|\bwindow\s*\.\s*open\s*\(|\bopen\s*\(\s*["'`]?https?:/;
+// The word before the "(" that opens the bracket S.key sits in ("if (a && S.key)" gives "if ...")
+function condOf(js, i) {
+  for (let d = 0, j = i - 1; j >= 0; j--) {
+    if (js[j] === ")") d++;
+    else if (js[j] === "(" && d-- === 0) return js.slice(Math.max(0, j - 8), j).trim().split(/\W+/).pop() + " ...";
+  }
+  return "";
+}
 function keyUse(html, js, fail, lineOf) {
   const H = "index.html", A = "app.js", FIX = "use the key only as a yes/no check; requests go through gh()";
   const m = /\bS\.key\b|localStorage|\bstore\.(get|set|del)\(\s*["'`]key["'`]/.exec(html) || SINKS.exec(html);
@@ -249,7 +262,8 @@ function keyUse(html, js, fail, lineOf) {
     if (/^= k;/.test(post)) { setK++; continue; }
     if (/^= "";/.test(post)) { forgetK++; continue; }
     if (/\+$/.test(pre) || /^\+/.test(post) || /^=(?!=)/.test(post)) { bad(i); continue; }
-    if (pre.endsWith("!") || /^(\?(?![.?])|&&|\|\|)/.test(post) || /^\)/.test(post) && /(&&|\|\||\bif \(|\bwhile \()$/.test(pre)) continue;
+    // allowed: !S.key, S.key ? …, S.key && … (their value is never the key), and S.key closing an if / while condition
+    if (pre.endsWith("!") || /^(\?(?![.?])|&&)/.test(post) || /^\)/.test(post) && /^(if|while)\b/.test(condOf(js, i))) continue;
     bad(i);
   }
   if (bearer !== 1 || setK !== 1 || forgetK !== 1) bad(1, "the key must be sent once (gh's Bearer header), set once (Save key) and cleared once (Forget key)");
@@ -323,7 +337,12 @@ if [ ! -f tests/prepush.mjs ]; then
   echo "pre-push: warning: neither this branch nor origin/main has the before-push check yet (not released, or reverted); push allowed" >&2
   exit 0
 fi
-exec node tests/prepush.mjs "$@"
+out=$(node tests/prepush.mjs "$@") || exit 1
+case "$out" in
+  *"commits checked, static OK"*) echo "$out"; exit 0 ;;
+esac
+echo "pre-push: tests/prepush.mjs did not report a check (empty or broken?): run node tests/all.mjs; push refused" >&2
+exit 1
 `;
 // Written only when a clone has no pre-push hook at all (no gstack): runs the add-on the same way, and fails closed
 export const HOOK_MIN = `#!/bin/sh
@@ -334,6 +353,7 @@ echo "pre-push: $local_hook is missing or not executable: run node tests/all.mjs
 exit 1
 `;
 const MARK = /^# pse-screener-dashboard before-push check v(\d+) /m, HOOK_V = +MARK.exec(HOOK_LOCAL)[1];
+const codeLines = t => t.split("\n").filter(l => !/^\s*#/.test(l)).join("\n"); // a hook's lines that are not comments
 // Fills and checks the slot; never sets core.hooksPath, never overwrites gstack's pre-push or another tool's add-on.
 // -> {ok, msg}; every write is named in msg. Runs from node tests/all.mjs and a local node tests/static.mjs, never in CI.
 export function ensureHook(o = {}) {
@@ -350,10 +370,10 @@ export function ensureHook(o = {}) {
   const exec = f => { try { accessSync(f, constants.X_OK); return true; } catch { return false; } };
   if (!existsSync(main)) put(main, HOOK_MIN);
   else if (!exec(main)) return {ok: false, msg: "pre-push check: " + main + " is not executable: chmod +x " + main + " (see README.md#pre-push)"};
-  else if (!readFileSync(main, "utf8").includes("pre-push.local")) return {ok: false, msg: "pre-push check: " + main + " does not call pre-push.local: mv " + main + " " + main + ".bak, then node tests/all.mjs (see README.md#pre-push)"};
+  else if (!codeLines(readFileSync(main, "utf8")).includes("pre-push.local")) return {ok: false, msg: "pre-push check: " + main + " does not call pre-push.local: mv " + main + " " + main + ".bak, then node tests/all.mjs (see README.md#pre-push)"};
   const cur = existsSync(add) ? readFileSync(add, "utf8") : null, m = cur === null ? null : MARK.exec(cur);
   if (cur === HOOK_LOCAL && exec(add) && !wrote.length) return {ok: true, msg: "pre-push check: on"};
-  if (m && +m[1] > HOOK_V) return {ok: true, msg: "pre-push check: on (newer add-on from another branch)"};
+  if (m && +m[1] > HOOK_V && codeLines(cur).includes("tests/prepush.mjs")) return {ok: true, msg: "pre-push check: on (newer add-on from another branch)"};
   if (cur !== null && cur !== HOOK_LOCAL && !(m && +m[1] < HOOK_V))
     return {ok: false, msg: "pre-push check: " + add + " holds another tool's add-on (or an edited copy): mv " + add + " " + add + ".bak, then node tests/all.mjs (see README.md#pre-push)"};
   if (cur !== HOOK_LOCAL || !exec(add)) put(add, HOOK_LOCAL);
