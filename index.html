@@ -1080,7 +1080,7 @@ const COLS = [
   {k: "cci20", t: "Momentum", hl: 1, f: r => r.cci20 === null ? "—" : r.cci20.toFixed(1)},
   {k: "close", t: "Price ₱", hl: 1, f: r => price(r.close)},
   {k: "value_today", t: "Traded today", hl: 1, x: 1, f: r => money(r.value_today)},
-  {k: "chg_pct", t: "Today %", hl: 1, f: r => spct(r.chg_pct, 2), c: 1},
+  {k: "chg_pct", t: "Today %", hl: 1, x: 1, f: r => spct(r.chg_pct, 2), c: 1}, // phone: in the stock panel
   {k: "atr_pct14", t: "Daily swing", x: 1, f: r => pct(r.atr_pct14, 2)},
   {k: "roc9", t: "9-day change", x: 1, f: r => spct(r.roc9), c: 1},
   {k: "pct_high_above_close", t: "Below year high", x: 1, f: r => pct(r.pct_high_above_close)},
@@ -1143,7 +1143,7 @@ function tableRows() {
     const have = new Set(S.rows.map(r => r.symbol));
     if (H.by) for (const sym of H.by.keys()) if (!have.has(sym) && sym.toLowerCase().includes(q)) rs.push(ghost(sym, null));
   }
-  const cs = cols(), col = cs.find(c => c.k === k && c.t), mine = cs === MYCOLS && !col; // My list without a sort column: A to Z
+  const {k, dir} = S.sort, cs = cols(), col = cs.find(c => c.k === k && c.t), mine = cs === MYCOLS && !col; // My list without a sort column: A to Z
   const g = mine ? r => r.symbol : col && col.v || (r => r[k]), d = mine ? 1 : dir;
   return rs.map(r => [r, g(r)]).sort(([, x], [, y]) => {
     x = x === undefined ? null : x; y = y === undefined ? null : y;
