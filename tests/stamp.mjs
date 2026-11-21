@@ -9,8 +9,7 @@
 //   no_claim=whether app.js itself is safe (tests/static.mjs).
 import {readFileSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
-import {pathToFileURL} from "node:url";
-import {ROOT, scriptTag, TAG_SHAPE} from "./static.mjs";
+import {ROOT, scriptTag, TAG_SHAPE, isMain} from "./static.mjs";
 
 export function stamp(html, js) {
   const lines = html.split("\n"), at = lines.flatMap((l, i) => (l.match(/<script/gi) || []).map(() => i));
@@ -23,7 +22,7 @@ export function stamp(html, js) {
   return {html: lines.join("\n"), v: tag.match(/\?v=([0-9a-f]+)/)[1]};
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url)) {
   const page = join(ROOT, "index.html"), r = stamp(readFileSync(page, "utf8"), readFileSync(join(ROOT, "app.js")));
   if (r.err) { console.error(r.err); process.exit(1); }
   writeFileSync(page, r.html);

@@ -5,8 +5,15 @@
 // Value: protects=every guard that keeps price data and the key out of the public repo and the page loading only itself;
 //   fails_when=a guard is moved but no longer called, loosened past the plan, or echoes what it matched;
 //   no_claim=what the page does on screen (/qa), and the PR body or screenshots (/cso).
-import {spawn} from "node:child_process";
-import {scan, realFiles, scriptTag} from "./static.mjs";
+// Section 10 (the before-push check, plan § 3): protects=every pushed commit, message and tag is leak-checked and each
+//   tip fully scanned, through the real hooks, without touching the real clone's hooks; fails_when=a leak in history,
+//   a merge, a first commit, a message or a tag passes, bad input passes, or ensureHook overwrites another tool's hook;
+//   no_claim=a push with --no-verify, or from a clone where node tests/all.mjs never ran.
+import {spawn, spawnSync, execFileSync} from "node:child_process";
+import {mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join, resolve, dirname} from "node:path";
+import {scan, realFiles, scriptTag, ensureHook, HOOK_LOCAL, ROOT} from "./static.mjs";
 import {inject} from "./demo.mjs";
 import {stamp} from "./stamp.mjs";
 
@@ -247,6 +254,117 @@ try {
     if (r.status !== want) { bad++; console.log(`FAIL demo server GET /${p}: ${r.status}, want ${want}`); }
   }
 } finally { server.kill(); }
+
+// 10. The before-push check, path level (plan § 3, all thirteen cases), in a throwaway repository under the system temp
+// folder: its own user, every inherited GIT_* setting cleared and the user's global and system git config cut off, so
+// nothing reaches the real repository; the real clone's hooks folder must be byte for byte unchanged afterwards.
+{
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+  Object.assign(env, {GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0"});
+  const run = (cwd, cmd, args, input = "") => spawnSync(cmd, args, {cwd, env, input, encoding: "utf8"});
+  const git = (cwd, ...a) => { const r = run(cwd, "git", ["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", "-c", "advice.nestedTag=false", ...a]);
+    if (r.status !== 0) throw new Error("guards.mjs: git " + a.join(" ") + ": " + r.stderr); return r.stdout.trim(); };
+  const realHooks = join(resolve(ROOT, execFileSync("git", ["rev-parse", "--git-common-dir"], {cwd: ROOT}).toString().trim()), "hooks");
+  const snap = () => { try { return readdirSync(realHooks).sort().map(f => f + ":" + statSync(join(realHooks, f)).mode + ":" + readFileSync(join(realHooks, f)).toString("base64")).join("|"); } catch { return "none"; } };
+  const before = snap(), base = mkdtempSync(join(tmpdir(), "pse-dash-hook-")), work = join(base, "work"), bare = join(base, "origin.git"), stg = join(base, "staging.git");
+  const ok = (cond, what) => { n++; if (!cond) { bad++; console.log("FAIL pre-push " + what); } };
+  const Z = "0".repeat(40);
+  try {
+    git(base, "init", "-q", "--bare", bare); git(base, "init", "-q", "--bare", stg); git(base, "init", "-q", "-b", "main", work);
+    git(work, "config", "user.name", "Made Up"); git(work, "config", "user.email", "made-up@example.invalid");
+    for (const f of real) { mkdirSync(dirname(join(work, f.path)), {recursive: true}); writeFileSync(join(work, f.path), f.bytes); }
+    git(work, "add", "-A"); git(work, "commit", "-q", "-m", "seed"); git(work, "remote", "add", "origin", bare); git(work, "push", "-q", "origin", "main");
+    const hooks = join(work, ".git", "hooks"), H = f => join(hooks, f);
+    const eh = () => ensureHook({cwd: work, env});
+    ok(eh().ok && readFileSync(H("pre-push.local"), "utf8") === HOOK_LOCAL, "ensureHook switches the check on in a fresh clone");
+    const pp = (input, remote = "origin") => run(work, process.execPath, [join(work, "tests", "prepush.mjs"), remote, remote === "origin" ? bare : remote], input);
+    const line = (ref, sha) => ref + " " + sha + " " + ref + " " + Z + "\n";
+    const commit = (msg, edits) => { // edits: {path: text|Buffer|null}
+      for (const [p, v] of Object.entries(edits)) { if (v === null) git(work, "rm", "-q", p); else { mkdirSync(dirname(join(work, p)), {recursive: true}); writeFileSync(join(work, p), v); git(work, "add", "-f", p); } }
+      git(work, "commit", "-q", "--allow-empty", "-m", msg); return git(work, "rev-parse", "HEAD");
+    };
+    const branch = b => git(work, "checkout", "-q", "-B", b, "main");
+    const CSV = HEADER + "\n";
+    // 1. a clean commit
+    branch("c1"); const c1 = commit("a clean change", {"README.md": txt("README.md") + "\nclean\n"});
+    { const r = pp(line("refs/heads/c1", c1)); ok(r.status === 0 && /^pre-push: [1-9]\d* commits checked, static OK$/m.test(r.stdout), "1: a clean commit passes with the pre-push line"); }
+    // 2. a results file added, then deleted: still refused (history is public too)
+    branch("c2"); const a2 = commit("add", {"results/latest.csv": CSV}), b2 = commit("remove", {"results/latest.csv": null});
+    { const r = pp(line("refs/heads/c2", b2)); ok(r.status === 1 && r.stderr.includes("ALLOWLIST commit " + a2.slice(0, 7) + " results/latest.csv") && r.stderr.includes("nothing was pushed") &&
+      r.stderr.includes("git reset --soft $(git merge-base HEAD origin/main) && git commit") && !r.stderr.includes(HEADER) && /push refused$/.test(r.stderr.trim()), "2: a results file added then deleted is refused, with the history fix"); }
+    // 3. a token in a commit message
+    branch("c3"); const c3 = commit("note " + TOKEN, {"README.md": txt("README.md") + "\nx\n"});
+    { const r = pp(line("refs/heads/c3", c3)); ok(r.status === 1 && r.stderr.includes("TOKEN commit " + c3.slice(0, 7) + " message") && !r.stderr.includes(TOKEN) && r.stderr.includes("git commit --amend"), "3: a token in a message is refused, not echoed, with the message fix"); }
+    // 4. a branch deletion
+    { const r = run(work, process.execPath, [join(work, "tests", "prepush.mjs"), "origin", bare], "refs/heads/gone " + Z + " refs/heads/gone " + c1 + "\n"); ok(r.status === 0, "4: a branch deletion passes"); }
+    // 5. a half-finished middle commit (an old-size page, no app.js), complete tip
+    branch("c5"); commit("half", {"index.html": txt("index.html") + "<!-- " + "x".repeat(41 * 1024) + " -->\n", "app.js": null});
+    const c5 = commit("whole", {"index.html": txt("index.html"), "app.js": get("app.js")});
+    { const r = pp(line("refs/heads/c5", c5)); ok(r.status === 0, "5: a half-finished middle commit passes when the tip is complete"); }
+    // 6. a tip that fails scan(): app.js changed without restamping
+    branch("c6"); const c6 = commit("unstamped", {"app.js": Buffer.concat([get("app.js"), B("// x\n")])});
+    { const r = pp(line("refs/heads/c6", c6)); ok(r.status === 1 && r.stderr.includes("SCRIPT-TAG index.html:"), "6: a tip with an unstamped script tag is refused"); }
+    // 7. ensureHook's refusals (nothing written, the fix printed), a newer add-on left alone, and the add-on's own branch rules
+    const keep = f => readFileSync(H(f), "utf8");
+    writeFileSync(H("pre-push.local"), "#!/bin/sh\necho another tool\n", {mode: 0o755});
+    { const r = eh(); ok(!r.ok && r.msg.includes("holds another tool's add-on") && r.msg.includes("mv ") && keep("pre-push.local").includes("another tool"), "7: a foreign pre-push.local is refused and kept"); }
+    writeFileSync(H("pre-push.local"), HOOK_LOCAL.replace(" check v1 ", " check v9 "), {mode: 0o755});
+    { const r = eh(); ok(r.ok && r.msg.includes("newer add-on") && keep("pre-push.local").includes(" v9 "), "7: a higher-version add-on is left alone"); }
+    writeFileSync(H("pre-push.local"), HOOK_LOCAL, {mode: 0o755});
+    const mainHook = keep("pre-push"); writeFileSync(H("pre-push"), "#!/bin/sh\nexit 0\n", {mode: 0o755});
+    { const r = eh(); ok(!r.ok && r.msg.includes("does not call pre-push.local") && keep("pre-push") === "#!/bin/sh\nexit 0\n", "7: a pre-push without the .local call is refused and kept"); }
+    writeFileSync(H("pre-push"), mainHook, {mode: 0o755});
+    git(work, "config", "core.hooksPath", "elsewhere");
+    { const r = eh(); ok(!r.ok && r.msg.includes("(local config)") && r.msg.includes("git config --unset core.hooksPath"), "7: core.hooksPath in local config is refused with its unset"); }
+    git(work, "config", "--unset", "core.hooksPath"); git(work, "config", "extensions.worktreeConfig", "true"); git(work, "config", "--worktree", "core.hooksPath", "elsewhere");
+    { const r = eh(); ok(!r.ok && r.msg.includes("(worktree config)") && r.msg.includes("git config --worktree --unset core.hooksPath"), "7: core.hooksPath in worktree config is refused with its unset"); }
+    git(work, "config", "--worktree", "--unset", "core.hooksPath");
+    ok(eh().ok, "7: the slot is on again");
+    branch("c7"); const c7 = commit("old branch", {"tests/prepush.mjs": null}); git(work, "fetch", "-q", "origin");
+    { const r = run(work, "sh", [H("pre-push.local"), "origin", bare], line("refs/heads/c7", c7)); ok(r.status === 1 && r.stderr.includes("git fetch origin && git rebase origin/main"), "7: a branch without the check is refused once main has it"); }
+    const om = git(work, "rev-parse", "refs/remotes/origin/main"); git(work, "update-ref", "refs/remotes/origin/main", c7);
+    { const r = run(work, "sh", [H("pre-push.local"), "origin", bare], line("refs/heads/c7", c7)); ok(r.status === 0 && r.stderr.includes("warning"), "7: before the release (or after a revert) it only warns"); }
+    git(work, "update-ref", "refs/remotes/origin/main", om);
+    // 8. a real git push through the hooks: the leaking branch never arrives, the clean one does
+    git(work, "checkout", "-q", "c2");
+    { const r = run(work, "git", ["push", "-q", "origin", "c2"]); ok(r.status !== 0 && run(base, "git", ["--git-dir", bare, "cat-file", "-e", a2]).status !== 0, "8: git push refuses the leaking branch and the remote lacks its commits"); }
+    git(work, "checkout", "-q", "c1");
+    { const r = run(work, "git", ["push", "-q", "origin", "c1"]); ok(r.status === 0 && run(base, "git", ["--git-dir", bare, "cat-file", "-e", c1]).status === 0, "8: git push sends the clean branch"); }
+    // 9. garbage input and no input
+    { const r = pp("garbage\n"); ok(r.status === 1 && r.stderr.includes("pre-push: internal error") && r.stderr.includes("push refused"), "9: a garbage input line is an internal error, push refused"); }
+    { const r = pp(""); ok(r.status === 1 && r.stderr.includes("no refs received"), "9: empty input is refused"); }
+    { const ln = join(base, "link"); symlinkSync(work, ln); // a workspace reached through a symlink must still run the check, not exit 0 silently
+      const r = run(ln, process.execPath, [join(ln, "tests", "prepush.mjs"), "origin", bare], line("refs/heads/c2", b2)); ok(r.status === 1 && r.stderr.includes("ALLOWLIST"), "9: run through a symlinked folder, it still refuses"); }
+    // 10. a merge whose resolution adds a results file, then a deletion; an orphan branch whose first commit adds one
+    branch("side"); commit("side", {"README.md": txt("README.md") + "\nside\n"}); branch("m"); commit("main side", {"CLAUDE.md": txt("CLAUDE.md") + "\nm\n"});
+    git(work, "merge", "-q", "--no-commit", "--no-ff", "side");
+    mkdirSync(join(work, "results"), {recursive: true}); writeFileSync(join(work, "results", "latest.csv"), CSV); git(work, "add", "-f", "results/latest.csv"); git(work, "commit", "-q", "-m", "merge");
+    const mg = git(work, "rev-parse", "HEAD"), m2 = commit("remove", {"results/latest.csv": null});
+    { const r = pp(line("refs/heads/m", m2)); ok(r.status === 1 && r.stderr.includes("ALLOWLIST commit " + mg.slice(0, 7) + " results/latest.csv"), "10: a merge resolution adding a results file is refused"); }
+    git(work, "checkout", "-q", "--orphan", "o", "main"); const o1 = commit("root", {"results/latest.csv": CSV});
+    { const r = pp(line("refs/heads/o", o1)); ok(r.status === 1 && r.stderr.includes("ALLOWLIST commit " + o1.slice(0, 7)), "10: an orphan branch's first commit is checked"); }
+    // 11. annotated tags: a token in its message, a clean tag wrapping a dirty one, a tag straight at a blob
+    git(work, "tag", "-a", "t1", "-m", "t " + TOKEN, c1); git(work, "tag", "-a", "t2", "-m", "clean", "t1");
+    const blob = run(work, "git", ["hash-object", "-w", "--stdin"], "x").stdout.trim(); git(work, "tag", "t3", blob);
+    for (const [t, what, want] of [["t1", "a token in a tag message", "TOKEN tag"], ["t2", "a clean tag wrapping a dirty one", "TOKEN tag"], ["t3", "a tag at a blob", "TAG-TARGET refs/tags/t3"]]) {
+      const r = pp(line("refs/tags/" + t, git(work, "rev-parse", t))); ok(r.status === 1 && r.stderr.includes(want) && !r.stderr.includes(TOKEN), "11: " + what + " is refused");
+    }
+    // 12. a staging remote holding A (adds a results file) and B (deletes it); C on top, pushed by the destination's URL
+    branch("c12"); const A = commit("A", {"results/latest.csv": CSV}), Bc = commit("B", {"results/latest.csv": null});
+    git(stg, "fetch", "-q", work, "c12:refs/heads/main"); git(work, "remote", "add", "staging", stg); git(work, "fetch", "-q", "staging");
+    const C = commit("C", {"README.md": txt("README.md") + "\nC\n"});
+    { const r = run(work, "git", ["push", "-q", bare, "c12:refs/heads/c12"]);
+      ok(r.status !== 0 && [A, Bc, C].every(x => run(base, "git", ["--git-dir", bare, "cat-file", "-e", x]).status !== 0), "12: a push by URL checks the whole history: refused, the destination lacks A, B and C"); }
+    // 13. a picture replaced by another valid PNG, then restored
+    const png = Buffer.concat([SIG, chunk("IHDR", ihdr(512)), chunk("IDAT", Buffer.alloc(16)), chunk("IEND", Buffer.alloc(0))]);
+    for (const [p, code] of [["docs/wireframe.png", "WIREFRAME"], ["icon.png", "ICON"]]) {
+      branch("c13"); commit("swap", {[p]: png}); const t13 = commit("restore", {[p]: get(p)});
+      const r = pp(line("refs/heads/c13", t13)); ok(r.status === 1 && r.stderr.includes(code + " commit "), "13: " + p + " swapped then restored is refused (" + code + ")");
+    }
+  } catch (e) { n++; bad++; console.log("FAIL pre-push path test: " + e.message); }
+  finally { rmSync(base, {recursive: true, force: true}); }
+  ok(snap() === before, "the real clone's hooks folder is unchanged");
+}
 
 if (bad) { console.log(`${bad} of ${n} checks failed`); process.exit(1); }
 console.log(`guards OK (${n} checks)`);

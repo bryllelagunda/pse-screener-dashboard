@@ -1,5 +1,7 @@
 // Static guards for the public repo: size, CSP, no unsafe DOM writes, no external loads, no secrets or data.
 // Runs in CI (no private files needed): node tests/static.mjs   Refusal tests: node tests/guards.mjs
+// Run locally (GITHUB_ACTIONS unset), it also switches the before-push check on: it may write one file,
+// .git/hooks/pre-push.local (and .git/hooks/pre-push only when none exists), and says so. Importing it writes nothing.
 //
 // scan(files) -> [{code, path, line, msg}], files = [{path, bytes}] (bytes a Buffer). Every message starts with a stable
 // code and gives path:line, never the matched text (CI logs are public). Codes:
@@ -19,14 +21,17 @@
 //   UNSAFE-DOM innerHTML, eval, script URLs, a script element made in code, import(), workers
 // The page is two files: index.html (markup and styles) and app.js (all code); every page rule reads both.
 // The command line prints each finding as "CODE path:line what: fix (see README.md#code)".
-import {readFileSync} from "node:fs";
+import {readFileSync, writeFileSync, renameSync, chmodSync, existsSync, mkdirSync, accessSync, constants, realpathSync} from "node:fs";
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
-import {join, dirname} from "node:path";
-import {fileURLToPath, pathToFileURL} from "node:url";
+import {join, dirname, resolve} from "node:path";
+import {fileURLToPath} from "node:url";
 import {iconBytes} from "./icon.mjs";
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// True when the module at url is the script node was started with, through any symlink (a folder reached through a
+// link must not make a check skip itself and exit 0)
+export const isMain = url => { try { return realpathSync(fileURLToPath(url)) === realpathSync(process.argv[1]); } catch { return false; } };
 export const CSP = "default-src 'self'; connect-src https://api.github.com; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 export const LINKS = ['<link rel="manifest" href="manifest.webmanifest">', '<link rel="apple-touch-icon" href="icon.png">', '<link rel="icon" href="icon.png">'];
 const ALLOW = /^(index\.html|app\.js|README\.md|CLAUDE\.md|\.gitignore|manifest\.webmanifest|icon\.png|docs\/wireframe\.png|tests\/[a-z]+\.mjs|\.github\/workflows\/[a-z-]+\.yml)$/;
@@ -66,12 +71,18 @@ const DEMO_FS = 'import {readFileSync} from "node:fs";';
 const DEMO_MAP = 'const READ = Object.freeze({"/": "index.html", "/app.js": "app.js", "/manifest.webmanifest": "manifest.webmanifest", "/icon.png": "icon.png"});';
 const DEMO_CALL = "readFileSync(join(ROOT, READ[p]))", DEMO_MODULES = ["node:fs", "node:http", "node:path", "node:url"];
 
-export function scan(files) {
+const finder = () => {
   const out = [];
   const fail = (code, path, line, msg, fix) => out.push(fix ? {code, path, line, msg, fix} : {code, path, line, msg});
-  const lineOf = (text, i) => i < 0 ? 1 : text.slice(0, i).split("\n").length;
-  const each = (text, re, f) => text.split("\n").forEach((l, i) => { if (re.test(l)) f(i + 1); });
-  const byPath = new Map(files.map(f => [f.path, f.bytes]));
+  return {out, fail};
+};
+const lineOf = (text, i) => i < 0 ? 1 : text.slice(0, i).split("\n").length;
+const each = (text, re, f) => text.split("\n").forEach((l, i) => { if (re.test(l)) f(i + 1); });
+
+// The leak checks, run on any set of files (the whole tree here and in CI; each pushed commit's changed files in
+// tests/prepush.mjs): file names, tokens, results text, rows, pictures. Nothing here needs the rest of the tree.
+export function leaks(files) {
+  const {out, fail} = finder();
   for (const {path, bytes} of files) {
     if (!ALLOW.test(path)) fail("ALLOWLIST", path, 1, "file not on the public allowlist");
     if (/\.png$/i.test(path)) { png(path, bytes, fail); continue; }
@@ -79,12 +90,38 @@ export function scan(files) {
     const t = bytes.toString("utf8");
     if (path !== "tests/static.mjs") each(t, RESULTS, n => fail("RESULTS-SHAPED", path, n, "results-shaped data"));
     each(t, TOKEN, n => fail("TOKEN", path, n, "token-like string"));
-    if (path === "tests/demo.mjs") demo(t, fail, each);
+    if (path === "tests/demo.mjs") demoRows(t, fail);
     else t.split("\n").forEach((l, i) => {
       if (ROW_START.test(l)) fail("ROWS", path, i + 1, "line starts like a stock row (symbol, then a comma)", ROW_FIX);
       else if (rowAt(l)) fail("ROWS", path, i + 1, "looks like a price row (symbol, date, numbers)", ROW_FIX);
     });
   }
+  const icon = files.find(f => f.path === "icon.png");
+  if (icon) {
+    const b = icon.bytes;
+    if (b.length >= 20000) fail("ICON", "icon.png", 1, "icon.png is " + b.length + " bytes (limit 19,999)");
+    if (b.toString("hex", 0, 8) !== PNG_SIG || b.length < 24 || b.toString("latin1", 12, 16) !== "IHDR" ||
+      b.readUInt32BE(16) !== 512 || b.readUInt32BE(20) !== 512) fail("ICON", "icon.png", 1, "icon.png must be a 512 x 512 PNG");
+    if (!b.equals(iconBytes())) fail("ICON", "icon.png", 1, "icon.png differs from what node tests/icon.mjs writes", "run node tests/icon.mjs");
+  }
+  const wf = files.find(f => f.path === "docs/wireframe.png");
+  if (wf && createHash("sha256").update(wf.bytes).digest("hex") !== WIREFRAME_SHA256) fail("WIREFRAME", "docs/wireframe.png", 1, "docs/wireframe.png changed (pinned sha256)", "git checkout origin/main -- docs/wireframe.png");
+  return out;
+}
+// A commit or tag message: tokens, results text and rows (path "message", line within it)
+export function textLeaks(text) {
+  const {out, fail} = finder();
+  each(text, RESULTS, n => fail("RESULTS-SHAPED", "message", n, "results-shaped data"));
+  each(text, TOKEN, n => fail("TOKEN", "message", n, "token-like string"));
+  text.split("\n").forEach((l, i) => { if (ROW_START.test(l) || rowAt(l)) fail("ROWS", "message", i + 1, "looks like a price row"); });
+  return out;
+}
+
+// Every check on a whole tree: the leak checks, then the page, the test server, the manifest and the icon
+export function scan(files) {
+  const out = leaks(files), fail = (code, path, line, msg, fix) => out.push(fix ? {code, path, line, msg, fix} : {code, path, line, msg});
+  const byPath = new Map(files.map(f => [f.path, f.bytes]));
+  const dm = byPath.get("tests/demo.mjs"); if (dm) demo(dm.toString("utf8"), fail);
   const html = byPath.get("index.html"), js = byPath.get("app.js");
   if (!html) fail("ALLOWLIST", "index.html", 1, "index.html missing", "restore it: git checkout origin/main -- index.html");
   if (!js) fail("ALLOWLIST", "app.js", 1, "app.js missing", "restore it: git checkout origin/main -- app.js");
@@ -92,16 +129,7 @@ export function scan(files) {
   const mf = byPath.get("manifest.webmanifest");
   if (!mf) fail("MANIFEST", "manifest.webmanifest", 1, "manifest.webmanifest missing");
   else manifest(mf.toString("utf8"), fail);
-  const icon = byPath.get("icon.png");
-  if (!icon) fail("ICON", "icon.png", 1, "icon.png missing");
-  else {
-    if (icon.length >= 20000) fail("ICON", "icon.png", 1, "icon.png is " + icon.length + " bytes (limit 19,999)");
-    if (icon.toString("hex", 0, 8) !== PNG_SIG || icon.length < 24 || icon.toString("latin1", 12, 16) !== "IHDR" ||
-      icon.readUInt32BE(16) !== 512 || icon.readUInt32BE(20) !== 512) fail("ICON", "icon.png", 1, "icon.png must be a 512 x 512 PNG");
-    if (!icon.equals(iconBytes())) fail("ICON", "icon.png", 1, "icon.png differs from what node tests/icon.mjs writes");
-  }
-  const wf = byPath.get("docs/wireframe.png");
-  if (wf && createHash("sha256").update(wf).digest("hex") !== WIREFRAME_SHA256) fail("WIREFRAME", "docs/wireframe.png", 1, "docs/wireframe.png changed (pinned sha256)");
+  if (!byPath.has("icon.png")) fail("ICON", "icon.png", 1, "icon.png missing", "run node tests/icon.mjs");
   return out;
 }
 
@@ -240,11 +268,10 @@ function manifest(text, fail) {
   if (/http/i.test(text)) fail("MANIFEST", P, 1, "no address may appear in the manifest");
 }
 
-function demo(t, fail, each) {
-  const P = "tests/demo.mjs";
-  const lines = t.split("\n"), unq = l => l.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, '""');
-  const hint = ': build symbols as "DEMO" + letter, keep numbers inline, 7 commas or fewer per line';
-  lines.forEach((l, i) => {
+const DEMO_HINT = ': build symbols as "DEMO" + letter, keep numbers inline, 7 commas or fewer per line';
+function demoRows(t, fail) { // the test server's own row rules (a leak check)
+  const P = "tests/demo.mjs", hint = DEMO_HINT, unq = l => l.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, '""');
+  t.split("\n").forEach((l, i) => {
     if ((unq(l).match(/,/g) || []).length >= 8) fail("DEMO-ROWS", P, i + 1, "looks like a CSV row" + hint);
     if (ROW_START.test(l)) fail("DEMO-ROWS", P, i + 1, "line starts like a stock row" + hint);
     const cells = cellsOf(l); // real-looking numbers beside a DEMO symbol (plan § 4.2)
@@ -252,6 +279,9 @@ function demo(t, fail, each) {
     for (const m of l.matchAll(/["'`]([A-Z][A-Z0-9]{1,4})["'`]/g))
       if (!m[1].startsWith("DEMO") && !DEMO_OK.has(m[1])) fail("DEMO-ROWS", P, i + 1, "a symbol-like string that is not DEMO..." + hint);
   });
+}
+function demo(t, fail) { // what the test server may write, read and listen on
+  const P = "tests/demo.mjs", lines = t.split("\n");
   each(t, /writeFile|appendFile|createWriteStream/, n => fail("DEMO-WRITE", P, n, "the test server must not write files"));
   const listens = lines.map((l, i) => [l, i + 1]).filter(([l]) => /\blisten\(/.test(l));
   if (!listens.length) fail("DEMO-LISTEN", P, 1, "no listen( call found");
@@ -270,14 +300,78 @@ function demo(t, fail, each) {
   });
 }
 
+// ---------------------------------------------------------------- the before-push check (plan § 3)
+// A commit's whole tree as files, read from git (never the working folder). opts: {cwd, env} for every git call.
+const gitOut = (args, o = {}) => execFileSync("git", args, {cwd: o.cwd || ROOT, env: o.env || process.env, maxBuffer: 64 << 20, stdio: ["ignore", "pipe", "pipe"]});
+export function treeFiles(sha, o = {}) {
+  const out = [];
+  for (const e of gitOut(["ls-tree", "-r", "-z", sha], o).toString("utf8").split("\0").filter(Boolean)) {
+    const [meta, path] = [e.slice(0, e.indexOf("\t")), e.slice(e.indexOf("\t") + 1)], [, type, oid] = meta.split(" ");
+    out.push({path, bytes: type === "blob" ? gitOut(["cat-file", "blob", oid], o) : Buffer.from("")});
+  }
+  return out;
+}
+// The add-on gstack's pre-push hook runs first (.git/hooks/pre-push.local). Frozen per version: a change bumps v1.
+export const HOOK_LOCAL = `#!/bin/sh
+# pse-screener-dashboard before-push check v1 (written by node tests/all.mjs; do not edit)
+command -v node >/dev/null || { echo "pre-push: node not found on this PATH (a GUI app's git may not see nvm): install Node 22 or later; push refused" >&2; exit 1; }
+if [ ! -f tests/prepush.mjs ]; then
+  if git cat-file -e origin/main:tests/prepush.mjs 2>/dev/null; then
+    echo "pre-push: this branch is older than the before-push check: run git fetch origin && git rebase origin/main; push refused" >&2
+    exit 1
+  fi
+  echo "pre-push: warning: neither this branch nor origin/main has the before-push check yet (not released, or reverted); push allowed" >&2
+  exit 0
+fi
+exec node tests/prepush.mjs "$@"
+`;
+// Written only when a clone has no pre-push hook at all (no gstack): runs the add-on the same way, and fails closed
+export const HOOK_MIN = `#!/bin/sh
+# pse-screener-dashboard minimal pre-push v1 (written by node tests/all.mjs because none existed): runs pre-push.local
+local_hook="$(git rev-parse --git-path hooks/pre-push.local)"
+if [ -x "$local_hook" ]; then exec "$local_hook" "$@"; fi
+echo "pre-push: $local_hook is missing or not executable: run node tests/all.mjs; push refused" >&2
+exit 1
+`;
+const MARK = /^# pse-screener-dashboard before-push check v(\d+) /m, HOOK_V = +MARK.exec(HOOK_LOCAL)[1];
+// Fills and checks the slot; never sets core.hooksPath, never overwrites gstack's pre-push or another tool's add-on.
+// -> {ok, msg}; every write is named in msg. Runs from node tests/all.mjs and a local node tests/static.mjs, never in CI.
+export function ensureHook(o = {}) {
+  const git = args => { try { return gitOut(args, o).toString("utf8").trim(); } catch (e) { if (e.status === 1) return null; throw e; } };
+  const hp = git(["config", "--show-scope", "--get", "core.hooksPath"]);
+  if (hp !== null) {
+    const scope = hp.split("\t")[0], flag = {local: "", worktree: " --worktree", global: " --global", system: " --system"}[scope];
+    return {ok: false, msg: "pre-push check: core.hooksPath is set (" + scope + " config): git skips .git/hooks: " +
+      (flag === undefined ? "remove it from where it is set (" + scope + ")" : "git config" + flag + " --unset core.hooksPath") + ", then node tests/all.mjs (see README.md#pre-push)"};
+  }
+  const dir = join(resolve(o.cwd || ROOT, git(["rev-parse", "--git-common-dir"])), "hooks"), main = join(dir, "pre-push"), add = join(dir, "pre-push.local");
+  const wrote = [];
+  const put = (f, text) => { mkdirSync(dir, {recursive: true}); const tmp = f + ".tmp-" + process.pid; writeFileSync(tmp, text, {mode: 0o755}); chmodSync(tmp, 0o755); renameSync(tmp, f); wrote.push(f); };
+  const exec = f => { try { accessSync(f, constants.X_OK); return true; } catch { return false; } };
+  if (!existsSync(main)) put(main, HOOK_MIN);
+  else if (!exec(main)) return {ok: false, msg: "pre-push check: " + main + " is not executable: chmod +x " + main + " (see README.md#pre-push)"};
+  else if (!readFileSync(main, "utf8").includes("pre-push.local")) return {ok: false, msg: "pre-push check: " + main + " does not call pre-push.local: mv " + main + " " + main + ".bak, then node tests/all.mjs (see README.md#pre-push)"};
+  const cur = existsSync(add) ? readFileSync(add, "utf8") : null, m = cur === null ? null : MARK.exec(cur);
+  if (cur === HOOK_LOCAL && exec(add) && !wrote.length) return {ok: true, msg: "pre-push check: on"};
+  if (m && +m[1] > HOOK_V) return {ok: true, msg: "pre-push check: on (newer add-on from another branch)"};
+  if (cur !== null && cur !== HOOK_LOCAL && !(m && +m[1] < HOOK_V))
+    return {ok: false, msg: "pre-push check: " + add + " holds another tool's add-on (or an edited copy): mv " + add + " " + add + ".bak, then node tests/all.mjs (see README.md#pre-push)"};
+  if (cur !== HOOK_LOCAL || !exec(add)) put(add, HOOK_LOCAL);
+  return {ok: true, msg: "pre-push check: switched on (wrote " + wrote.join(", ") + ")"};
+}
+
 // One finding as the command line prints it: the code, path:line, what failed, the fix and where the README explains it
 export const say = e => e.code + " " + e.path + ":" + e.line + " " + e.msg + (e.fix ? ": " + e.fix : "") + " (see README.md#" + e.code.toLowerCase() + ")";
 
 export const realFiles = () => execFileSync("git", ["ls-files", "--cached"], {cwd: ROOT}).toString().split("\n").filter(Boolean)
   .map(path => ({path, bytes: readFileSync(join(ROOT, path))}));
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url)) {
+  // A local run (not CI) also fills and checks the before-push slot: the one file it may write is .git/hooks/pre-push.local
+  const h = process.env.GITHUB_ACTIONS ? null : ensureHook();
+  if (h) (h.ok ? console.log : console.error)(h.msg);
   const errs = scan(realFiles());
   if (errs.length) { console.error(errs.map(say).join("\n")); process.exit(1); }
+  if (h && !h.ok) process.exit(1);
   console.log("static OK");
 }
