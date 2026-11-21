@@ -812,7 +812,7 @@ const dropDay = () => { if (!S.key) { LATEST = S.dayMsg = null; dgen++; } }; // 
 // Loads results/<d>.csv and its compare day (the last final day before it); a failure keeps the latest on screen
 async function pickDay(d) {
   if (d === latestDate()) { backToLatest(); return renderAll(); }
-  if (LATEST && d === S.date) { dgen++; S.dayMsg = null; return renderBars(); }
+  if (LATEST && d === S.date) { if (S.dayMsg && S.dayMsg.wait) { dgen++; S.dayMsg = null; renderBars(); } return; } // cancels only a day still loading
   const my = ++dgen, get = f => fileText("results/" + f + ".csv");
   S.dayMsg = {wait: d}; renderBars();
   try {
