@@ -436,7 +436,7 @@ function saveDate() {
 function forgetKey() {
   gen++; hgen++; S.key = ""; store.del("key"); store.del("keyExp"); store.del("keyNag"); store.del("cache"); H = {state: "missing"}; S.htext = null;
   Object.assign(S, {rows: null, date: null, meta: null, index: [], status: null, cmpRows: null, cmpDate: null, msg: null, keyBarShown: false,
-    authErr: false, noAccess: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false});
+    authErr: false, noAccess: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false, loading: 0}); // a load still running can't clear it (T-29)
   showKey("key"); renderAll();
 }
 /* KEY-END */
@@ -525,10 +525,12 @@ async function pickDay(d) {
     if (my !== dgen) return;
     if (!csv) throw new Error("no file for that day");
     const cd = S.index.filter(e => e.final === true && isDay(e.date) && e.date < d).map(e => e.date).sort().pop() || null;
-    const ccsv = cd ? await get(cd).catch(e => { if (e instanceof AuthError) S.authErr = true; return null; }) : null;
+    let why = null; // the compare file failed: that day shows without a comparison, and the bar says why
+    const ccsv = cd ? await get(cd).then(t => { if (!t) why = "no file for that day"; return t; },
+      e => { if (e instanceof AuthError) S.authErr = true; why = e instanceof AuthError ? "GitHub didn't accept the key" : e.message || "no answer"; return null; }) : null;
     if (my !== dgen) return;
     if (!LATEST) LATEST = fields();
-    setCurrent(csv); setCompare(ccsv, cd); S.dayMsg = null;
+    setCurrent(csv); setCompare(ccsv, cd); S.dayMsg = why ? {nocmp: cd, why} : null;
   } catch (e) {
     if (my !== dgen) return;
     if (e instanceof AuthError) S.authErr = true;
@@ -968,6 +970,7 @@ function renderBars() {
   if (LATEST) bar("bars", "info", ["Showing ", el("b", {text: dayLabel(S.date)}), ", an earlier day.", act("Back to latest", () => { backToLatest(); renderAll(); DB.focus(); })]);
   if (dm && dm.wait) bar("bars", "mute", ["Loading " + dayLabel(dm.wait) + "…"]);
   if (dm && dm.fail) bar("bars", "", ["Couldn't load " + dayLabel(dm.fail) + " (" + dm.why + "). Showing the latest day."]);
+  if (dm && dm.nocmp) bar("bars", "", ["Couldn't load " + dayLabel(dm.nocmp) + " to compare with (" + dm.why + "). Showing " + dayLabel(S.date) + " without a comparison."]);
   const said = kb.band && bandText(kb.band, kb.days, dateLabel(kb.exp), standalone()) + " ";
   if (kb.band === "out" || kb.band === "refused") { bar("bars", "err", [said, renew()]); if (!S.keyBarShown) $("keylive").textContent = said; S.keyBarShown = true; }
   else { $("keylive").textContent = ""; S.keyBarShown = false; } // the next refusal is announced again
@@ -1080,9 +1083,9 @@ async function loadRemote() {
     if (!csv) { if (!S.rows) S.msg = "No results yet: press Run now."; return; }
     const cd = onLatest(() => { setCurrent(csv); return cmpOk(S.cmpDate) && S.index.some(e => e.date === S.cmpDate) ? S.cmpDate : defaultCompare(); });
     S.updated = Date.now(); S.cached = false; S.msg = null;
-    // A compare file that fails or times out never fails the main load (only a refused key does)
+    // A compare file that fails, times out or refuses the key never fails the main load: the fresh results still show and save
     let cfail = false; // a failed compare file keeps the comparison already shown (and saved), never erases it
-    const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { if (e instanceof AuthError) throw e; cfail = true; return null; }) : null;
+    const ccsv = cd ? await fileText("results/" + cd + ".csv").catch(e => { if (e instanceof AuthError) S.authErr = true; cfail = true; return null; }) : null;
     if (my !== gen) return;
     const kept = onLatest(() => { const k = cfail && S.cmpRows ? (store.get("cache", null) || {}).cmp || null : null; if (!cfail || !S.cmpRows) setCompare(ccsv, cd); return k; });
     saveCache({csv, index: S.index, status: S.status, holidays: [...S.holidays], cmp: ccsv ? {date: cd, csv: ccsv} : kept, at: S.updated});
@@ -1412,6 +1415,7 @@ function init() {
   const keepCmp = cmp => { const c = !LATEST && store.get("cache", null); if (c) saveCache({...c, cmp}); };
   $("cmp").addEventListener("change", async e => {
     const v = e.target.value, my = dgen; // a day picked meanwhile wins
+    if (S.dayMsg && S.dayMsg.nocmp) S.dayMsg = null; // a comparison picked by hand replaces "without a comparison"
     if (!v) { setCompare(null); keepCmp(null); renderAll(); return; }
     try { const t = await fileText("results/" + v + ".csv"); if (my !== dgen) return; setCompare(t, v); keepCmp(t ? {date: v, csv: t} : null); }
     catch (err) { if (my !== dgen) return; if (err instanceof AuthError) S.authErr = true; setCompare(null); }

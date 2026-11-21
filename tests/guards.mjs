@@ -165,7 +165,9 @@ refuse("a headerless row in tests/x.mjs", "ROWS", {"tests/x.mjs": B("const a = 1
   }
   for (const [what, row] of shapes(Q1).filter(([w]) => ["plain", "JSON object", "JSON array", "space-separated"].includes(w)))
     refuse("a one-letter symbol's row (" + what + ") in README.md", "ROWS", {"README.md": add("README.md", row)}, row);
-  for (const [what, row] of shapes(ZZ)) pass("a made-up ZZ symbol's row (" + what + ")", {"README.md": add("README.md", row)}, "ROWS");
+  // the made-up set is the new rules' exemption, not a hole; the old line-start rule keeps refusing any symbol, made-up or not
+  for (const [what, row] of shapes(ZZ)) pass("a made-up ZZ symbol's row (" + what + ")", {"README.md": add("README.md", "Made-up: " + row)}, "ROWS");
+  refuse("a made-up symbol's row at the start of a line (the old rule)", "ROWS", {"README.md": add("README.md", shapes(ZZ)[0][1])});
   pass("a dated note that is not a row", {"README.md": add("README.md", "T-23 " + D + " shipped 3 of 4 items")}, "ROWS");
   pass("ordinary code starting with a one-letter name", {"tests/x.mjs": B("S, a, b;\nconst q = [Q, 1, 2, 3];\n")}, "ROWS");
 }

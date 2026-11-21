@@ -11,7 +11,8 @@
 //   MANIFEST   manifest.webmanifest keys and values     ICON        icon.png: 512 x 512, under 20,000 bytes, = tests/icon.mjs
 //   PNG-CHUNKS a PNG with other chunks or extra bytes   WIREFRAME   docs/wireframe.png changed (pinned by sha256)
 //   RESULTS-SHAPED results CSV text                     TOKEN       a GitHub token shape
-//   ROWS       a line that starts like a stock row      DEMO-ROWS   tests/demo.mjs: CSV-looking lines or symbols
+//   ROWS       a stock row anywhere in a line           DEMO-ROWS   tests/demo.mjs: CSV-looking lines, symbols, numbers by DEMO
+//   KEY-USE    the key used as a value, stored or sent outside its places, or a navigation call (app.js)
 //   DEMO-WRITE tests/demo.mjs writes a file             DEMO-READ   tests/demo.mjs reads other than its four files
 //   DEMO-LISTEN tests/demo.mjs listens beyond 127.0.0.1 PAGE-DEMO   index.html or app.js: "demo", serviceWorker, caches.
 //   KEY-BLOCK  the key's end date outside its block, a request inside it, the key in the address, Forget key
@@ -35,6 +36,18 @@ const MANIFEST = {name: "PSE Screener", short_name: "PSE Screener", start_url: "
 const PNG_SIG = "89504e470d0a1a0a", PNG_OK = new Set(["IHDR", "PLTE", "IDAT", "IEND", "sRGB", "gAMA", "pHYs"]);
 const RESULTS = /^symbol,name,data_date,|pass_strict,pass_loose/m, TOKEN = /github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}/;
 const ROW_START = /^\s*["']?[A-Z][A-Z0-9]{1,4}["']?,/;
+// A row anywhere in a line (plan § 4.1): cells split on , tab ; |, each cut to its last piece, so "close":12.5 gives 12.5
+const SYM = /^[A-Z][A-Z0-9]{0,4}$/, ISO = /^\d{4}-\d{2}-\d{2}$/, NUM = /^-?\d+(\.\d+)?(e[+-]?\d+)?$/i;
+export const MADE_UP = /^(DEMO[A-Z][0-9]?|ZZ[A-Z]|SYN)$/; // symbols tests may use: no PSE symbol has these shapes
+const cellsOf = l => l.split(/[,\t;|]/).map(c => c.split(/[\s"'`=:;()[\]{}]+/).filter(Boolean).pop() || "");
+const nearRow = (cells, i, dateIn, numsIn) => cells.slice(i + 1, i + 1 + dateIn).some(c => ISO.test(c)) && cells.slice(i + 1, i + 1 + numsIn).filter(c => NUM.test(c)).length >= 3;
+export function rowAt(l) {
+  const cells = cellsOf(l);
+  if (cells.some((c, i) => SYM.test(c) && !MADE_UP.test(c) && nearRow(cells, i, 12, 12))) return true;
+  const toks = l.split(/[\s,;|]+/).map(t => t.split(/["'`=:()[\]{}]+/).filter(Boolean).pop() || "").filter(Boolean); // space-separated rows (3b)
+  return toks.some((t, i) => (/^[A-Z][A-Z0-9]{1,4}$/.test(t) || i === 0 && SYM.test(t)) && !MADE_UP.test(t) && nearRow(toks, i, 6, 12));
+}
+const ROW_FIX = "if this is not price data, drop the date or move the numbers off the line; made-up symbols: DEMO…, ZZ…, SYN";
 const DEMO_OK = new Set(["GET", "POST", "PUT", "OK", "UTC", "PSE", "CSV", "PNG"]);
 const UNSAFE = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|srcdoc|setAttribute\(\s*["'`]on|javascript:|set(Timeout|Interval)\(\s*["'`]|\.src\s*=|createElement(NS)?\s*\([^)]*["'`]script["'`]|\bimport\s*\(|new\s+(Shared)?Worker\b|importScripts/i;
 // The one way code reaches the page: this tag, built from the tracked app.js bytes (node tests/stamp.mjs writes it)
@@ -67,7 +80,10 @@ export function scan(files) {
     if (path !== "tests/static.mjs") each(t, RESULTS, n => fail("RESULTS-SHAPED", path, n, "results-shaped data"));
     each(t, TOKEN, n => fail("TOKEN", path, n, "token-like string"));
     if (path === "tests/demo.mjs") demo(t, fail, each);
-    else each(t, ROW_START, n => fail("ROWS", path, n, "line starts like a stock row (symbol, then a comma)"));
+    else t.split("\n").forEach((l, i) => {
+      if (ROW_START.test(l)) fail("ROWS", path, i + 1, "line starts like a stock row (symbol, then a comma)", ROW_FIX);
+      else if (rowAt(l)) fail("ROWS", path, i + 1, "looks like a price row (symbol, date, numbers)", ROW_FIX);
+    });
   }
   const html = byPath.get("index.html"), js = byPath.get("app.js");
   if (!html) fail("ALLOWLIST", "index.html", 1, "index.html missing", "restore it: git checkout origin/main -- index.html");
@@ -157,7 +173,8 @@ function page(html, jsBytes, fail, lineOf) {
     if (n !== 1) fail("LINK-TAGS", H, 1, "each of the three allowed <link> tags must appear exactly once (found " + n + ")");
     rest = rest.split(tag).join("");
   }
-  if (want) rest = rest.replace(want, "");
+  const one = /^<script src="app\.js\?v=[0-9a-f]*" integrity="sha384-[A-Za-z0-9+/=]*"><\/script>$/m.exec(rest); // SCRIPT-TAG judges its fingerprint
+  if (one) rest = rest.slice(0, one.index) + rest.slice(one.index + one[0].length);
   const lk = /<link/i.exec(js); if (lk) fail("LINK-TAGS", A, lineOf(js, lk.index), "app.js must hold no <link tag");
   const LOAD = /<[a-z][^>]*[\s/](src|srcset|poster|data)\s*=|<(link|base)[^>]*[\s/]href\s*=|@import|\burl\(/i; // any tag that loads a resource
   for (const [P, t] of [[H, rest], ...files.slice(1)]) { const x = LOAD.exec(t); if (x) fail("EXT-LOAD", P, lineOf(t, x.index), "external script, stylesheet or resource found"); }
@@ -171,6 +188,7 @@ function page(html, jsBytes, fail, lineOf) {
   // KEY-BLOCK: the key's end date is read and written only inside KEY-START ... KEY-END (in app.js), which sends nothing
   const km = /\/\* KEY-(START|END)/.exec(html); if (km) fail("KEY-BLOCK", H, lineOf(html, km.index), "KEY markers belong in app.js only", "move the KEY block back to app.js");
   const ke = /keyExp/.exec(html); if (ke) fail("KEY-BLOCK", H, lineOf(html, ke.index), "keyExp used outside the KEY block", "read the end date only inside app.js's KEY block");
+  keyUse(html, jsBytes ? js : null, fail, lineOf);
   if (!jsBytes) return;
   const a = js.indexOf("/* KEY-START"), b = js.indexOf("/* KEY-END */");
   if (a < 0 || b < a || js.indexOf("/* KEY-START", a + 1) >= 0 || js.indexOf("/* KEY-END */", b + 1) >= 0) { fail("KEY-BLOCK", A, 1, "KEY-START / KEY-END markers missing or repeated"); return; }
@@ -182,6 +200,37 @@ function page(html, jsBytes, fail, lineOf) {
   const fk = /function forgetKey\(\)[\s\S]*?\n\}/.exec(block);
   if (!fk || !["key", "keyExp", "keyNag", "cache"].every(n => fk[0].includes('store.del("' + n + '")')))
     fail("KEY-BLOCK", A, fk ? lineOf(js, a + fk.index) : 1, "forgetKey must delete key, keyExp, keyNag and cache");
+}
+
+// KEY-USE: in app.js the key is read only as a yes/no check, set only by Save key and Forget key, sent only as gh()'s Bearer
+// header, read from and written to storage once each; localStorage only inside store; no navigation call at all (connect-src
+// stops requests, not a navigation, a link or a new window). index.html holds none of it.
+const SINKS = /\blocation\s*\.\s*(assign|replace)\s*\(|\blocation\s*\.\s*href\s*=(?!=)|\blocation\s*=(?!=)|\bdocument\s*\.\s*location\b|\bwindow\s*\.\s*open\s*\(|\bopen\s*\(\s*["'`]?https?:/;
+function keyUse(html, js, fail, lineOf) {
+  const H = "index.html", A = "app.js", FIX = "use the key only as a yes/no check; requests go through gh()";
+  const m = /\bS\.key\b|localStorage|\bstore\.(get|set|del)\(\s*["'`]key["'`]/.exec(html) || SINKS.exec(html);
+  if (m) fail("KEY-USE", H, lineOf(html, m.index), "the key, storage or a navigation call in index.html", "keep all code in app.js");
+  if (js === null) return;
+  const bad = (i, what) => fail("KEY-USE", A, lineOf(js, i), what || "the key is used as a value (or a navigation call) outside its three allowed places", FIX);
+  const g = /async function gh\(path, opts = \{\}\) \{[\s\S]*?\n\}/.exec(js), st = /const store = \{[\s\S]*?\n\};/.exec(js);
+  const inside = (r, i) => r && i >= r.index && i < r.index + r[0].length;
+  let bearer = 0, setK = 0, forgetK = 0;
+  for (const u of js.matchAll(/\bS\.key\b/g)) {
+    const i = u.index, pre = js.slice(Math.max(0, i - 12), i).trimEnd(), post = js.slice(i + 5, i + 20).trimStart();
+    if (pre.endsWith('"Bearer " +') && inside(g, i)) { bearer++; continue; }
+    if (/^= k;/.test(post)) { setK++; continue; }
+    if (/^= "";/.test(post)) { forgetK++; continue; }
+    if (/\+$/.test(pre) || /^\+/.test(post) || /^=(?!=)/.test(post)) { bad(i); continue; }
+    if (pre.endsWith("!") || /^(\?(?![.?])|&&|\|\|)/.test(post) || /^\)/.test(post) && /(&&|\|\||\bif \(|\bwhile \()$/.test(pre)) continue;
+    bad(i);
+  }
+  if (bearer !== 1 || setK !== 1 || forgetK !== 1) bad(1, "the key must be sent once (gh's Bearer header), set once (Save key) and cleared once (Forget key)");
+  for (const re of [/\bS\s*\[\s*["'`]key["'`]/, /\{[^{}]*\bkey\b[^{}]*\}\s*=\s*S\b/]) { const x = re.exec(js); if (x) bad(x.index); }
+  for (const [re, what] of [[/\bstore\.get\(\s*["'`]key["'`]/g, "read"], [/\bstore\.set\(\s*["'`]key["'`]/g, "saved"]]) {
+    const all = [...js.matchAll(re)]; if (all.length !== 1) bad(all.length ? all[1].index : 1, "the key must be " + what + " in storage exactly once");
+  }
+  for (const x of js.matchAll(/localStorage|sessionStorage/g)) if (!inside(st, x.index)) bad(x.index, "storage used outside the store object");
+  const sk = SINKS.exec(js); if (sk) bad(sk.index, "a navigation call (location.assign/replace/href, document.location, window.open)");
 }
 
 function manifest(text, fail) {
@@ -198,6 +247,8 @@ function demo(t, fail, each) {
   lines.forEach((l, i) => {
     if ((unq(l).match(/,/g) || []).length >= 8) fail("DEMO-ROWS", P, i + 1, "looks like a CSV row" + hint);
     if (ROW_START.test(l)) fail("DEMO-ROWS", P, i + 1, "line starts like a stock row" + hint);
+    const cells = cellsOf(l); // real-looking numbers beside a DEMO symbol (plan § 4.2)
+    if (cells.some((c, j) => /^DEMO[A-Z0-9]*$/.test(c) && cells.slice(j + 1, j + 13).filter(x => NUM.test(x)).length >= 2)) fail("DEMO-ROWS", P, i + 1, "numbers beside a DEMO symbol" + hint);
     for (const m of l.matchAll(/["'`]([A-Z][A-Z0-9]{1,4})["'`]/g))
       if (!m[1].startsWith("DEMO") && !DEMO_OK.has(m[1])) fail("DEMO-ROWS", P, i + 1, "a symbol-like string that is not DEMO..." + hint);
   });
