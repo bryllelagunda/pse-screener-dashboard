@@ -203,6 +203,11 @@ refuse("demo: a quoted row of cells", "DEMO-ROWS", demo(ROW.split(",").map(c => 
 refuse("demo: a row written as an object", "DEMO-ROWS", demo('const r = {s: "ZQX", c: 41.2};'));
 refuse("demo: real-looking numbers beside a DEMO symbol (array)", "DEMO-ROWS", demo('const r = ["DEMOA", 41.2, 3.1, 88000000];'));
 refuse("demo: real-looking numbers beside a DEMO symbol (object)", "DEMO-ROWS", demo('const r = {symbol: "DEMOB", close: 41.2, chg_pct: 3.1};'));
+// A real row anywhere in a test-server line is refused there too (the row-anywhere rule, not only the server's own rules)
+{ const Q3 = String.fromCharCode(81, 81, 88), row = [Q3, DATE, "41.2", "3.1", "88000"];
+  refuse("demo: a space-separated row in a comment", "DEMO-ROWS", demo("// " + row.join(" ")), row.join(" "));
+  refuse("demo: a row inside a string", "DEMO-ROWS", demo("const note = 'seen: " + row.join(" ") + "';"), row.join(" "));
+  refuse("demo: a semicolon row in a comment", "DEMO-ROWS", demo("// " + row.join(";")), row.join(";")); }
 pass("demo: DEMO symbols with no numbers", demo('const r = ["DEMOA", "DEMOB"];'), "DEMO-ROWS");
 pass("demo: a DEMO symbol with one number", demo('const r = pick("DEMOC", 1);'), "DEMO-ROWS");
 refuse("demo: eight commas of numbers", "DEMO-ROWS", demo("const a = [" + Array.from({length: 9}, (_, i) => i + 1.5).join(", ") + "];"));

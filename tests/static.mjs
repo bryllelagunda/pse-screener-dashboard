@@ -293,6 +293,7 @@ function demoRows(t, fail) { // the test server's own row rules (a leak check)
   t.split("\n").forEach((l, i) => {
     if ((unq(l).match(/,/g) || []).length >= 8) fail("DEMO-ROWS", P, i + 1, "looks like a CSV row" + hint);
     if (ROW_START.test(l)) fail("DEMO-ROWS", P, i + 1, "line starts like a stock row" + hint);
+    if (rowAt(l)) fail("DEMO-ROWS", P, i + 1, "looks like a price row (symbol, date, numbers)" + hint); // the row-anywhere rule, here too
     const cells = cellsOf(l); // real-looking numbers beside a DEMO symbol (plan § 4.2)
     if (cells.some((c, j) => /^DEMO[A-Z0-9]*$/.test(c) && cells.slice(j + 1, j + 13).filter(x => NUM.test(x)).length >= 2)) fail("DEMO-ROWS", P, i + 1, "numbers beside a DEMO symbol" + hint);
     for (const m of l.matchAll(/["'`]([A-Z][A-Z0-9]{1,4})["'`]/g))
