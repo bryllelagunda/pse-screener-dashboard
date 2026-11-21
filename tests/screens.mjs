@@ -77,10 +77,10 @@ for (const [k, v] of [["pse.key", "k-made-up"], ["pse.keyExp", "2027-01-01"], ["
 const before = new Map(LS.map);
 const store_ = block("const store = {", "const MINUS"), keyBlock = block("/* KEY-START", "/* KEY-END */");
 const M = new Function("localStorage", store_ + block("/* MYLIST-START", "/* MYLIST-END */") +
-  "; return {priceIn, cleanMine, mineWith, mineErr, readNotes, priceMsg, myView, levelLine, saveMine, mine: () => MINE, mineOf, starred, MAX_MINE, NOSAVE};")(LS);
+  "; return {priceIn, cleanMine, mineWith, mineErr, readNotes, priceMsg, myView, levelLine, saveMine, reloadMine, mine: () => MINE, mineOf, starred, MAX_MINE, NOSAVE};")(LS);
 
 eq([M.priceIn(""), M.priceIn(" 3.40 "), M.priceIn("₱1,200.5"), M.priceIn(".5")], [null, 3.4, 1200.5, 0.5], "prices: empty is none; ₱, commas and spaces are read");
-eq(["0", "0.00", "-1", "abc", "1e3", "3.4.5"].map(t => Number.isNaN(M.priceIn(t))), [true, true, true, true, true, true], "0, below 0 and not a number are refused");
+eq(["0", "0.00", "-1", "abc", "1e3", "3.4.5", "9".repeat(400)].map(t => Number.isNaN(M.priceIn(t))), [true, true, true, true, true, true, true], "0, below 0, not a number and a number too long to hold are refused");
 eq(M.readNotes({buy: "0", cut: "2", target: "x", note: "n"}), {bad: ["buy", "target"]}, "readNotes names every refused box");
 eq(M.readNotes({buy: "3.40", cut: "", target: "4", note: "  " + "x".repeat(400)}).note.length, 300, "a note is capped at 300 characters");
 eq([M.priceMsg(7.85), M.priceMsg(0.0425), M.priceMsg(null)], ["Enter a price above 0, like 7.85.", "Enter a price above 0, like 0.0425.", "Enter a price above 0."], "the refusal names this stock's close");
@@ -116,6 +116,8 @@ eq(JSON.parse(LS.getItem("pse.mine")).length, 1, "My list is saved under pse.min
 LS.full = true;
 eq([M.saveMine([]), M.mine().length], [false, 1], "storage full: the save is refused and the list in memory is unchanged");
 LS.full = false;
+LS.setItem("pse.mine", JSON.stringify([...L, {sym: "DEMOB", star: true}])); M.reloadMine();
+eq(M.mine().map(e => e.sym), ["DEMOA", "DEMOB"], "a change starts from storage, so a star saved in another tab is kept");
 eq([...LS.map.keys()].filter(k => !before.has(k)), ["pse.mine"], "My list adds one storage name, pse.mine");
 eq([...before].filter(([k, v]) => LS.getItem(k) !== v), [], "the key, its date, the cache, saved sets and settings are untouched");
 eq(["mine"].filter(n => keyBlock.includes('"' + n + '"')), [], "Forget key (the KEY block) never names My list's storage");
@@ -166,6 +168,17 @@ for (const [what, file, why] of [["missing", undefined, "no file for that day"],
   eq([T.S.date, T.latest().date], ["2026-11-17", "2026-11-20"], "one earlier day after another: the latest stays the one kept aside");
   const slow = T.pickDay("2026-11-19"); T.backToLatest(); await slow;
   eq(T.S.date, "2026-11-20", "Back to latest during a load: the late file never lands");
+}
+{
+  let done; const T = mkDay({"results/2026-11-17.csv": new Promise(r => { done = r; })});
+  const p = T.pickDay("2026-11-17");
+  Object.assign(T.S, {key: "", rows: null, date: null}); T.dropDay(); done("rows 2026-11-17"); await p;
+  eq([T.S.rows, T.S.dayMsg ?? null, T.latest()], [null, null, null], "Forget key during a first pick: the late day file never lands");
+}
+{
+  let done; const T = mkDay({"results/2026-11-17.csv": "rows 2026-11-17", "results/2026-11-19.csv": new Promise(r => { done = r; })});
+  await T.pickDay("2026-11-17"); const p = T.pickDay("2026-11-19"); await T.pickDay("2026-11-17"); done("rows 2026-11-19"); await p;
+  eq([T.S.date, T.S.dayMsg ?? null], ["2026-11-17", null], "picking the shown day again cancels a pick still loading");
 }
 {
   const T = mkDay({"results/2026-11-17.csv": "rows 2026-11-17"});

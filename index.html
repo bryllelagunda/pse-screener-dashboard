@@ -741,7 +741,7 @@ const okPrice = v => typeof v === "number" && Number.isFinite(v) && v > 0;
 // A price typed in a notes box: null when empty, NaN when 0, below 0 or not a number
 function priceIn(t) {
   t = String(t).trim().replace(/[₱,\s]/g, "");
-  return !t ? null : /^(\d+\.?\d*|\.\d+)$/.test(t) && +t > 0 ? +t : NaN;
+  return !t ? null : /^(\d+\.?\d*|\.\d+)$/.test(t) && okPrice(+t) ? +t : NaN;
 }
 const hasNotes = e => PRICES.some(k => e[k] !== null) || !!e.note;
 // The list read from storage: bad entries dropped, one per stock, at most MAX_MINE
@@ -785,6 +785,7 @@ function levelLine(e, close) {
 let MINE = cleanMine(store.get("mine", []));
 // Saves the whole list; false (and nothing changed) when storage is full or off
 function saveMine(list) { if (!store.set("mine", list)) return false; MINE = list; return true; }
+const reloadMine = () => { MINE = cleanMine(store.get("mine", MINE)); }; // before each change: another tab may have saved since
 const mineOf = sym => MINE.find(e => e.sym === sym) || null;
 const starred = () => MINE.filter(e => e.star);
 /* MYLIST-END */
@@ -807,11 +808,11 @@ function onLatest(f) {
   try { return f(); } finally { LATEST = fields(); Object.assign(S, pick); S.meta = S.index.find(e => e.date === S.date) || null; }
 }
 function backToLatest() { dgen++; S.dayMsg = null; if (LATEST) { Object.assign(S, LATEST); LATEST = null; } }
-const dropDay = () => { if (!S.key && LATEST) { LATEST = S.dayMsg = null; dgen++; } }; // after Forget key: the old latest is gone too
+const dropDay = () => { if (!S.key) { LATEST = S.dayMsg = null; dgen++; } }; // after Forget key: the old latest and any pick still loading are gone too
 // Loads results/<d>.csv and its compare day (the last final day before it); a failure keeps the latest on screen
 async function pickDay(d) {
   if (d === latestDate()) { backToLatest(); return renderAll(); }
-  if (LATEST && d === S.date) return;
+  if (LATEST && d === S.date) { dgen++; S.dayMsg = null; return renderBars(); }
   const my = ++dgen, get = f => fileText("results/" + f + ".csv");
   S.dayMsg = {wait: d}; renderBars();
   try {
@@ -1144,7 +1145,7 @@ function tableRows() {
     if (H.by) for (const sym of H.by.keys()) if (!have.has(sym) && sym.toLowerCase().includes(q)) rs.push(ghost(sym, null));
   }
   const {k, dir} = S.sort, cs = cols(), col = cs.find(c => c.k === k && c.t), mine = cs === MYCOLS && !col; // My list without a sort column: A to Z
-  const g = mine ? r => r.symbol : col && col.v || (r => r[k]), d = mine ? 1 : dir;
+  const g = mine ? r => r.symbol : col ? col.v || (r => r[k]) : r => r.cci20, d = mine ? 1 : col ? dir : -1; // a My list sort elsewhere: Momentum
   return rs.map(r => [r, g(r)]).sort(([, x], [, y]) => {
     x = x === undefined ? null : x; y = y === undefined ? null : y;
     if (x === null || y === null) return x === null ? (y === null ? 0 : 1) : -1; // empty last
@@ -1489,6 +1490,7 @@ function starBtn(sym) { // ☆ adds the stock to My list, ★ takes it off; neve
     "aria-label": (on ? "Remove " + sym + " from" : "Add " + sym + " to") + " My list", onclick: e => { e.stopPropagation(); starTap(sym); }});
 }
 function starTap(sym, inPanel) {
+  reloadMine();
   const e = mineOf(sym), on = !(e && e.star), err = on ? mineErr(MINE, sym) : "", msg = $(inPanel ? "nerr" : "mymsg");
   if (err || !saveMine(mineWith(MINE, sym, {star: on}))) { msg.textContent = err || NOSAVE; return; }
   msg.textContent = ""; render();
@@ -1511,11 +1513,13 @@ function saveNotes() {
   const sym = P.sym, row = (S.rows || []).find(r => r.symbol === sym), f = readNotes({note: $("nnote").value, buy: $("nbuy").value, cut: $("ncut").value, target: $("ntgt").value});
   for (const k in NIN) { const i = $(NIN[k]), bad = !!f.bad && f.bad.includes(k); i.classList.toggle("bad", bad); if (bad) i.setAttribute("aria-invalid", "true"); else i.removeAttribute("aria-invalid"); }
   if (f.bad) { $("nerr").textContent = priceMsg(row && row.close); $(NIN[f.bad[0]]).focus(); return; }
+  reloadMine();
   const err = mineErr(MINE, sym);
   if (err || !saveMine(mineWith(MINE, sym, {...f, star: true, at: new Date().toISOString()}))) { $("nerr").textContent = err || NOSAVE; return; }
   notesFor = null; render();
 }
 function clearNotes() {
+  reloadMine();
   if (!saveMine(mineWith(MINE, P.sym, {buy: null, cut: null, target: null, note: "", at: null}))) { $("nerr").textContent = NOSAVE; return; }
   notesFor = null; render();
 }
