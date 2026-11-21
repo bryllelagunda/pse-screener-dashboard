@@ -9,7 +9,7 @@ import {readFileSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 
-const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
+const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "app.js"), "utf8"); // the page's code
 const block = (a, b) => { const i = html.indexOf(a), j = html.indexOf(b); if (i < 0 || j < 0) throw new Error(a + " markers not found"); return html.slice(i, j); };
 const {PRESETS, parseHistory, missRule, dayRows, track, strength, knocking, disagree, daysText, behind, HHEAD} = new Function(
   block("/* FILTER-START", "/* FILTER-END */") + block("/* HISTORY-START", "/* HISTORY-END */") +

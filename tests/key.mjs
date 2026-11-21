@@ -5,11 +5,17 @@
 //   fails_when=a past or far date is saved, a band changes a day early or late around Manila midnight, Later hides
 //   the wrong bar or a bad stored value hides one, a singular reads "1 days", or a rate limit reads as a refused key;
 //   no_claim=the panel, focus and bars on screen, and what saveKey/forgetKey store (checked by /qa with tests/demo.mjs).
+// The LOAD block with Forget key (plan § 5.1, § 5.2): protects=Forget key during a load, a day pick or a Compare with…
+//   load leaves nothing loading and lets the late file land nowhere, and a refused key on the compare file alone keeps
+//   and saves the fresh results with the earlier comparison and shows the key warning;
+//   fails_when=the loading flag stays set so Refresh does nothing, a late file lands after Forget key, or the fresh
+//   results are dropped from the saved copy when only the compare file is refused;
+//   no_claim=the bars and the updating… line on screen (checked by /qa with tests/demo.mjs --fail-day).
 import {readFileSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 
-const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
+const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "app.js"), "utf8"); // the page's code
 const block = (a, b) => { const i = html.indexOf(a), j = html.indexOf(b); if (i < 0 || j < 0) throw new Error(a + " markers not found"); return html.slice(i, j); };
 const {validateExpiry, defaultExpiry, dateField, keyBand, bandText, authKind} = new Function(
   block("/* STATUS-START", "/* STATUS-END */") + block("/* SUMMARY-START", "/* SUMMARY-END */") + block("/* KEY-START", "/* KEY-END */") +
@@ -93,6 +99,88 @@ eq(bandText("nodate", null, ""), "Add your key's end date so this page can remin
 const h = o => ({get: k => o[k] ?? null});
 eq([authKind(401, h({})), authKind(403, h({})), authKind(403, h({"x-ratelimit-remaining": "0"})), authKind(403, h({"retry-after": "60"})),
   authKind(404, h({})), authKind(500, h({})), authKind(200, h({}))], ["auth", "auth", "rate", "rate", "", "", ""], "refused key vs rate limit vs other answers");
+
+// ---------------------------------------------------------------- LOAD with Forget key (the real gh() and fileText(), a fake fetch)
+// Each made-up file is text "rows <date>"; parseCSV reads its date, so setCurrent and setCompare run as written.
+function loadHarness(files, cache = null) {
+  const mem = new Map(cache ? [["cache", cache]] : []), asked = [], gates = [];
+  const store = {get: (k, d) => mem.has(k) ? mem.get(k) : d, set: (k, v) => { mem.set(k, JSON.parse(JSON.stringify(v))); return true; }, del: k => mem.delete(k)};
+  let hold = false; // true: every request waits until release(); a file name: only that one waits
+  const fetch = async (url, o) => {
+    const f = String(url).replace(/^.*\/contents\//, ""); asked.push(f);
+    if (hold === true || hold === f) await new Promise(r => gates.push(r));
+    if (o.signal && o.signal.aborted) throw o.signal.reason;
+    const v = files[f];
+    return v === 401 ? new Response("{}", {status: 401}) : v === undefined ? new Response("{}", {status: 404}) : new Response(v, {status: 200});
+  };
+  const parseCSV = t => [{data_date: String(t).split(" ")[1] || null}];
+  const S = {key: "k-made-up", rows: null, date: null, meta: null, updated: null, tried: null, loading: 0, cached: false, index: [], status: null,
+    holidays: new Set(), cmpRows: null, cmpDate: null, authErr: false, noAccess: false, refreshErr: null, msg: null, parity: 0, fixtureBad: 0};
+  const names = "S, store, fetch, parseCSV, isDay, addDays, manilaISO, dayDiff, plural, showKey, renderHeader, renderSummary, renderBars, cleanIndex, PRESETS, evaluate, parseHistory, checkFixture, API";
+  const L = new Function(...names.split(", "), "let H = {state: \"loading\"};\nconst renderAll = () => dropDay();\n" +
+    block("/* KEY-START", "/* KEY-END */") + block("/* DAY-START", "/* DAY-END */") + block("/* LOAD-START", "/* LOAD-END */") +
+    "; return {loadRemote, refresh, forgetKey, pickDay, dropDay, onLatest, fileText, AuthError, setCompare, renderAll, saveCache, dgen: () => dgen, gen: () => gen};")(
+    S, store, fetch, parseCSV, d => /^\d{4}-\d{2}-\d{2}$/.test(d), () => "", () => "", () => 0, () => "", () => {}, () => {}, () => {}, () => {},
+    x => x, {}, () => [], () => ({state: "ok"}), () => {}, "https://api.github.com/repos/made-up");
+  return {S, mem, asked, L, hold: v => { hold = v; }, release: () => { while (gates.length) gates.shift()(); }};
+}
+const tick = () => new Promise(r => setTimeout(r, 0));
+const IDX = JSON.stringify([{date: "2026-11-20", final: true}, {date: "2026-11-19", final: true}, {date: "2026-11-18", final: true}, {date: "2026-11-17", final: true}]);
+const FILES = {"results/latest.csv": "rows 2026-11-20", "results/index.json": IDX, "data/holidays.csv": "date", "results/2026-11-19.csv": "rows 2026-11-19",
+  "results/2026-11-18.csv": "rows 2026-11-18", "results/2026-11-17.csv": "rows 2026-11-17"};
+{ // T-29: Forget key during a load clears the loading flag; Refresh works again once a key is saved
+  const T = loadHarness(FILES); T.hold(true);
+  const p = T.L.loadRemote(); await tick();
+  T.L.forgetKey(); T.release(); await p; T.hold(false);
+  eq([!!T.S.loading, T.S.rows], [false, null], "Forget key during a load: nothing is left loading and the late results never land");
+  T.S.key = "k-new"; const before = T.asked.length; T.L.refresh(); await tick();
+  eq(T.asked.length > before, true, "after Forget key and a new key, Refresh starts a new load");
+}
+{ // Forget key during a day pick: the late day file never lands
+  const T = loadHarness(FILES); await T.L.loadRemote(); T.hold(true);
+  const p = T.L.pickDay("2026-11-18"); await tick();
+  T.L.forgetKey(); T.release(); await p;
+  eq([T.S.rows, T.S.date, T.S.dayMsg ?? null], [null, null, null], "Forget key during a day pick: the late day file never lands");
+}
+{ // Forget key during a Compare with… load (the change handler in init, sliced by its own lines): the late file never lands
+  const js = html, a = js.indexOf("  const keepCmp = "), b = js.indexOf("  const days = $(\"days\")");
+  if (a < 0 || b < a) throw new Error("the Compare with… handler was not found in app.js");
+  const T = loadHarness(FILES); await T.L.loadRemote(); T.hold(true);
+  let onChange = null; const sel = {addEventListener: (t, f) => { onChange = f; }};
+  new Function("$", "fileText", "setCompare", "renderAll", "store", "saveCache", "AuthError", "S", "dgenOf", "genOf", "LATEST",
+    js.slice(a, b).replace(/\bdgen\b/g, "dgenOf()").replace(/\bgen\b/g, "genOf()"))(() => sel, T.L.fileText, T.L.setCompare, T.L.renderAll, {get: () => null}, T.L.saveCache, T.L.AuthError, T.S, T.L.dgen, T.L.gen, null);
+  const p = onChange({target: {value: "2026-11-18"}}); await tick();
+  T.L.forgetKey(); T.release(); await p;
+  eq([T.S.cmpRows, T.S.cmpDate], [null, null], "Forget key during a Compare with… load: the late file never lands");
+  T.hold(false); T.S.key = "k-new"; await T.L.loadRemote();
+  T.hold("results/2026-11-18.csv"); const slow = onChange({target: {value: "2026-11-18"}}); await tick();
+  T.hold(false); await onChange({target: {value: "2026-11-17"}}); T.release(); await slow;
+  eq(T.S.cmpDate, "2026-11-17", "two Compare with… choices: the older, slower file never lands over the newer choice");
+}
+{ // A date in index.json that is not a date never goes into a request's path
+  const bad = JSON.stringify([{date: "2026-11-20", final: true}, {date: "2026-11-19/../../x", final: true}]);
+  const T = loadHarness({...FILES, "results/index.json": bad}); await T.L.loadRemote();
+  eq(T.asked.filter(f => f.includes("..")), [], "a malformed index date is never requested as the comparison");
+}
+{ // A refusal that arrives after Forget key (or a new key) says nothing about the key now saved
+  const T = loadHarness({...FILES, "results/2026-11-19.csv": 401}); T.hold("results/2026-11-19.csv");
+  const p = T.L.loadRemote(); for (let i = 0; i < 5; i++) await tick();
+  T.L.forgetKey(); T.release(); await p;
+  eq(T.S.authErr, false, "a late refused compare file after Forget key does not mark the key refused");
+  const D = loadHarness({...FILES, "results/2026-11-17.csv": 401}); await D.L.loadRemote(); D.hold("results/2026-11-17.csv");
+  const q = D.L.pickDay("2026-11-18"); for (let i = 0; i < 5; i++) await tick();
+  D.L.forgetKey(); D.S.key = "k-new"; D.release(); await q;
+  eq(D.S.authErr, false, "a late refused compare file for a day pick after Forget key does not mark the key refused");
+}
+{ // A refused key on the compare file alone: fresh results shown and saved, the earlier comparison kept with its date, the key warning on
+  const old = {csv: "rows 2026-11-19", index: [], status: null, holidays: [], cmp: {date: "2026-11-18", csv: "rows 2026-11-18"}, at: 1};
+  const T = loadHarness({...FILES, "results/2026-11-18.csv": 401}, old);
+  Object.assign(T.S, {rows: [{data_date: "2026-11-19"}], date: "2026-11-19", cmpRows: [{data_date: "2026-11-18"}], cmpDate: "2026-11-18", cached: true});
+  await T.L.loadRemote();
+  const c = T.mem.get("cache") || {};
+  eq([T.S.date, T.S.cmpDate, T.S.authErr, c.csv, c.cmp && c.cmp.date], ["2026-11-20", "2026-11-18", true, "rows 2026-11-20", "2026-11-18"],
+    "refused key on the compare file alone: fresh results on screen and saved, the earlier comparison kept, the key warning on");
+}
 
 if (bad) { console.log(`${bad} of ${n} checks failed`); process.exit(1); }
 console.log(`key OK (${n} checks)`);

@@ -7,14 +7,14 @@
 //   fails_when=a corrupt or tampered entry loads, a good entry is dropped, a duplicate or 21st name is accepted,
 //   a rename to itself is refused, the summary misstates a filter, a 0 or negative price saves, a tag is off by the
 //   edge, storage full changes the list, the new storage touches the key, the cache or saved sets, or a refresh,
-//   a failed day file or Forget key leaves the wrong day on screen;
+//   a failed day file or Forget key leaves the wrong day on screen, or an earlier day's failed compare file says nothing;
 //   no_claim=buttons, the name box, URL restore, the panel toggle, the day menu and the panel's note boxes on screen
 //   (checked by /qa with tests/demo.mjs).
 import {readFileSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 
-const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
+const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "app.js"), "utf8"); // the page's code
 const block = (a, b) => { const i = html.indexOf(a), j = html.indexOf(b); if (i < 0 || j < 0) throw new Error(a + " markers not found"); return html.slice(i, j); };
 const src = block("/* FILTER-START", "/* FILTER-END */") + block("/* SCREENS-START", "/* SCREENS-END */");
 const {STRICT, LOOSE, cleanSet, loadScreens, nameError, sameSet, summary} =
@@ -123,7 +123,7 @@ eq([...before].filter(([k, v]) => LS.getItem(k) !== v), [], "the key, its date, 
 eq(["mine"].filter(n => keyBlock.includes('"' + n + '"')), [], "Forget key (the KEY block) never names My list's storage");
 
 // ---------------------------------------------------------------- Pick a day (DAY)
-const D = new Function("isDay", "fileText", "AuthError", "setCurrent", "setCompare", "renderAll", "renderBars", "S",
+const D = new Function("isDay", "fileText", "AuthError", "setCurrent", "setCompare", "renderAll", "renderBars", "S", "gen",
   block("/* DAY-START", "/* DAY-END */") + "; return {dayList, onLatest, backToLatest, dropDay, pickDay, latest: () => LATEST};");
 class AuthErr extends Error {}
 const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
@@ -133,7 +133,7 @@ const mkDay = files => {
   const fileText = async p => { asked.push(p); const v = files[p]; if (v instanceof Error) throw v; return v === undefined ? null : v; };
   const setCurrent = csv => { S.rows = csv; S.date = csv.slice(5); S.meta = S.index.find(e => e.date === S.date) || null; };
   const setCompare = (csv, d) => { S.cmpRows = csv || null; S.cmpDate = csv ? d : null; };
-  return {S, asked, ...D(isDay, fileText, AuthErr, setCurrent, setCompare, () => {}, () => {}, S)};
+  return {S, asked, ...D(isDay, fileText, AuthErr, setCurrent, setCompare, () => {}, () => {}, S, 0)}; // gen: the key's load counter (LOAD block)
 };
 eq(mkDay({}).dayList([{date: "2026-11-17"}, {date: "2026-11-20"}, {date: "2026-11-17"}, {date: "bad"}, {date: "2026-11-19", final: false}], "2026-11-20"),
   [{date: "2026-11-20", latest: true, prov: false}, {date: "2026-11-19", latest: false, prov: true}, {date: "2026-11-17", latest: false, prov: false}], "every saved day once, newest first, the latest marked");
@@ -161,6 +161,24 @@ for (const [what, file, why] of [["missing", undefined, "no file for that day"],
   const T = mkDay({"results/2026-11-17.csv": file});
   await T.pickDay("2026-11-17");
   eq([T.S.rows, T.S.date, T.latest(), T.S.dayMsg, !!T.S.authErr], ["rows 20", "2026-11-20", null, {fail: "2026-11-17", why}, what === "refused"], "a " + what + " day file says so and keeps the latest on screen");
+}
+// An earlier day whose compare file fails (plan § 5.3): that day on screen, no comparison, and a message naming why
+for (const [what, file, why] of [["missing", undefined, "no file for that day"], ["timed out", new Error("results/2026-11-13.csv: no answer in 30 seconds"), "results/2026-11-13.csv: no answer in 30 seconds"], ["refused", new AuthErr(), "GitHub didn't accept the key"]]) {
+  const T = mkDay({"results/2026-11-17.csv": "rows 2026-11-17", "results/2026-11-13.csv": file});
+  await T.pickDay("2026-11-17");
+  eq([T.S.date, T.S.cmpRows, T.S.dayMsg, !!T.S.authErr], ["2026-11-17", null, {nocmp: "2026-11-13", why}, what === "refused"], "an earlier day whose compare file is " + what + " says so");
+  T.backToLatest();
+  eq(T.S.dayMsg, null, "Back to latest clears the compare message (" + what + ")");
+}
+{
+  const T = mkDay({"results/2026-11-13.csv": "rows 2026-11-13"});
+  await T.pickDay("2026-11-13");
+  eq([T.S.date, T.S.cmpRows, T.S.dayMsg ?? null], ["2026-11-13", null, null], "an earlier day with no final day before it: no comparison and no message");
+}
+{
+  const T = mkDay({"results/2026-11-17.csv": "rows 2026-11-17"});
+  await T.pickDay("2026-11-17"); Object.assign(T.S, {key: ""}); T.dropDay();
+  eq(T.S.dayMsg, null, "Forget key clears the compare message");
 }
 {
   const T = mkDay({"results/2026-11-19.csv": "rows 2026-11-19", "results/2026-11-17.csv": "rows 2026-11-17"});
