@@ -57,6 +57,10 @@ const ROW = SYM + "," + ["Some Holdings Inc", DATE, "12.5", "3.1", "88000000", "
 for (const p of ["data.json", "manifest.json", "icon2.png", "tests/Demo.mjs", "results/latest.csv", "docs/shot.png", "app2.js", "js/app.js", ".githooks/pre-push"])
   refuse("new file " + p, "ALLOWLIST", {[p]: B("x")});
 refuse("app.js removed", "ALLOWLIST", {"app.js": null});
+// GitHub Pages must not run Jekyll (it would publish Markdown as pages on the key's address): .nojekyll present and empty
+refuse(".nojekyll removed", "NOJEKYLL", {".nojekyll": null});
+refuse(".nojekyll not empty", "NOJEKYLL", {".nojekyll": B("x")});
+for (const p of [".nojekyll2", "docs/.nojekyll", ".Nojekyll"]) refuse("new file " + p, "ALLOWLIST", {[p]: B("")});
 refuse("icon.png removed", "ICON", {"icon.png": null});
 refuse("manifest removed", "MANIFEST", {"manifest.webmanifest": null});
 

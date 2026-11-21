@@ -10,6 +10,7 @@
 //   HOSTS      a host other than (api.)github.com       CSP         the one exact policy, before the one script tag
 //   SCRIPT-TAG index.html's one script tag = the one built from app.js (node tests/stamp.mjs); the boot line and its CSS
 //   INLINE-CODE an event-handler attribute (on...=) in index.html   MD-HTML   raw HTML or a javascript: link in Markdown
+//   NOJEKYLL   .nojekyll missing or not empty (GitHub Pages would run Jekyll and publish Markdown as pages)
 //   MANIFEST   manifest.webmanifest keys and values     ICON        icon.png: 512 x 512, under 20,000 bytes, = tests/icon.mjs
 //   PNG-CHUNKS a PNG with other chunks or extra bytes   WIREFRAME   docs/wireframe.png changed (pinned by sha256)
 //   RESULTS-SHAPED results CSV text                     TOKEN       a GitHub token shape
@@ -34,7 +35,7 @@ export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const isMain = url => { try { return realpathSync(fileURLToPath(url)) === realpathSync(process.argv[1]); } catch { return false; } };
 export const CSP = "default-src 'self'; connect-src https://api.github.com; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 export const LINKS = ['<link rel="manifest" href="manifest.webmanifest">', '<link rel="apple-touch-icon" href="icon.png">', '<link rel="icon" href="icon.png">'];
-const ALLOW = /^(index\.html|app\.js|README\.md|CLAUDE\.md|\.gitignore|manifest\.webmanifest|icon\.png|docs\/wireframe\.png|tests\/[a-z]+\.mjs|\.github\/workflows\/[a-z-]+\.yml)$/;
+const ALLOW = /^(index\.html|app\.js|\.nojekyll|README\.md|CLAUDE\.md|\.gitignore|manifest\.webmanifest|icon\.png|docs\/wireframe\.png|tests\/[a-z]+\.mjs|\.github\/workflows\/[a-z-]+\.yml)$/;
 const WIREFRAME_SHA256 = "f48b46465d5982f255f067c8297fba7ae11ba22efb522f36f40a00a4e428dead"; // origin/main 0339337
 const MANIFEST = {name: "PSE Screener", short_name: "PSE Screener", start_url: "./", scope: "./", display: "standalone",
   background_color: "#16191f", theme_color: "#16191f", icons: [{src: "icon.png", sizes: "512x512", type: "image/png", purpose: "any maskable"}]};
@@ -141,6 +142,9 @@ export function scan(files) {
   if (!mf) fail("MANIFEST", "manifest.webmanifest", 1, "manifest.webmanifest missing");
   else manifest(mf.toString("utf8"), fail);
   if (!byPath.has("icon.png")) fail("ICON", "icon.png", 1, "icon.png missing", "run node tests/icon.mjs");
+  // Without it GitHub Pages runs Jekyll, which publishes Markdown (CLAUDE.md) as pages on the key's address with no policy
+  const nj = byPath.get(".nojekyll");
+  if (!nj || nj.length) fail("NOJEKYLL", ".nojekyll", 1, nj ? ".nojekyll must be empty" : ".nojekyll missing", "restore it: an empty file named .nojekyll at the top of the repo");
   return out;
 }
 

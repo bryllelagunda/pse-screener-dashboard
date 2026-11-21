@@ -7,7 +7,7 @@ the code), with no libraries, served by GitHub Pages at https://bryllelagunda.gi
 viewing only, so results stay in the private repository. The page reads them with a
 fine-grained GitHub token kept in your browser's `localStorage`. Never commit a `.csv`, `.json` data
 file or token here; `tests/static.mjs` fails CI if you do. It also allows only these files to be
-committed: `index.html`, `app.js`, `README.md`, `CLAUDE.md`, `.gitignore`, `manifest.webmanifest`, `icon.png`,
+committed: `index.html`, `app.js`, `.nojekyll` (empty: it stops GitHub Pages turning Markdown into pages), `README.md`, `CLAUDE.md`, `.gitignore`, `manifest.webmanifest`, `icon.png`,
 `docs/wireframe.png`, `tests/*.mjs` and `.github/workflows/*.yml`. Any other file, results-shaped CSV
 text or a stock row anywhere in a line of an allowed one, or a changed picture, fails the check, and every
 push is checked on this computer before it leaves (see "The before-push check").
@@ -214,6 +214,7 @@ Each refusal starts with its code and gives `path:line` (and the commit for hist
 | <a id="demo-rows"></a>DEMO-ROWS, <a id="demo-read"></a>DEMO-READ, <a id="demo-write"></a>DEMO-WRITE, <a id="demo-listen"></a>DEMO-LISTEN | the test server holding rows or real-looking numbers, reading other files, writing, or listening beyond 127.0.0.1 | build data in code from `DEMO` symbols |
 | <a id="manifest"></a>MANIFEST, <a id="icon"></a>ICON, <a id="png-chunks"></a>PNG-CHUNKS, <a id="wireframe"></a>WIREFRAME | the manifest, the icon or a picture changed | `node tests/icon.mjs`; `git checkout origin/main -- <file>` |
 | <a id="md-html"></a>MD-HTML | raw HTML or a `javascript:` link in a Markdown file (GitHub Pages publishes CLAUDE.md as a page on this address) | put it in a code span, or use plain Markdown |
+| <a id="nojekyll"></a>NOJEKYLL | `.nojekyll` missing or not empty | restore an empty `.nojekyll` at the top of the repo |
 | <a id="tag-target"></a>TAG-TARGET | a pushed ref pointing at a tree or blob | `git tag -d <tag>`, then push again |
 | <a id="pre-push"></a>pre-push | the add-on can't run (`core.hooksPath` set, a foreign add-on, a hook without the `.local` call, no input, an internal error) | the line printed with it, then `node tests/all.mjs` |
 

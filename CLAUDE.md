@@ -10,6 +10,8 @@ Public GitHub Pages dashboard for the private `pse-screener` repo. Never commit 
 - A conflict on the script-tag line: keep either side, run `node tests/stamp.mjs`, commit.
 - **Never `git push --no-verify`; branch from the current main.** Every push runs the before-push check
   (`tests/prepush.mjs`, through gstack's hook and `.git/hooks/pre-push.local`, which `node tests/all.mjs` writes).
+- Keep the empty `.nojekyll`: without it GitHub Pages publishes Markdown (this file) as pages on the key's address.
+  Markdown here holds no raw HTML or `javascript:` links (MD-HTML).
 - Reverting the split: delete `.git/hooks/pre-push.local` before pushing the revert branch (README "Changing the code").
 
 ## Testing
