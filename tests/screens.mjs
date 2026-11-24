@@ -124,7 +124,25 @@ eq(["mine"].filter(n => keyBlock.includes('"' + n + '"')), [], "Forget key (the 
 
 // ---------------------------------------------------------------- Pick a day (DAY)
 const D = new Function("isDay", "fileText", "AuthError", "setCurrent", "setCompare", "renderAll", "renderBars", "S", "gen",
-  block("/* DAY-START", "/* DAY-END */") + "; return {dayList, onLatest, backToLatest, dropDay, pickDay, latest: () => LATEST};");
+  block("/* DAY-START", "/* DAY-END */") + "; return {dayList, onLatest, backToLatest, dropDay, pickDay, latest: () => LATEST, dayWords, dayText};");
+{ // b12 (T-23 plan § 3.6, T-28): an earlier day's panel never says "today", and the day list shows the year on every row
+  const DW = D(() => true), W = DW.dayWords, lbl = new Function(/function dateLabel[\s\S]*?\n\}/.exec(html)[0] + "; return dateLabel;")();
+  const w = W("Thu, Oct 29"), t = W(null);
+  const {col, ...words} = w;
+  eq([words, col("Traded today"), col("Today %")], [{notIn: "Not in the Thu, Oct 29 scan", notScanned: "Not scanned on Thu, Oct 29", fails: "Fails on Thu, Oct 29", today: "On Thu, Oct 29"}, "Traded that day", "That day %"], "b12: an earlier day's panel words");
+  eq(Object.values(w).filter(x => typeof x === "string" && /today/i.test(x)), [], "b12: no earlier-day word says today");
+  // Regression: QA 2026-11-24 — the panel's numbers list said "Today %" on an earlier day (the COLS labels go through W.col)
+  const cols = [...block("const COLS = [", "const mv = ").matchAll(/\bt: "([^"]*)"/g)].map(m => m[1]);
+  eq(cols.map(t => w.col(t)).filter(x => /today/i.test(x)), [], "b12: no column label in an earlier day's panel says today");
+  eq(cols.length > 5 && cols.includes("Today %"), true, "b12: the column labels were read");
+  eq(cols.map(t => W(null).col(t)), cols, "b12: the latest day keeps every column label");
+  eq([t.notIn, t.fails, t.today, t.col("Traded today")], ["Not in today's scan", "Fails today", "Today", "Traded today"], "b12: the latest day keeps today's words");
+  const rp = /function renderPanel\(\)[\s\S]*?\n\}/.exec(html)[0].replace(/\/\/.*$/gm, "");
+  eq((rp.match(/"(?:[^"\\]|\\.)*"/g) || []).filter(q => /\btoday\b/i.test(q) && q !== '" Today\'s results still work."'), [], "b12: renderPanel holds no today wording of its own (it reads dayWords)");
+  eq([DW.dayText({date: "2026-10-29", prov: true}, lbl), DW.dayText({date: "2025-12-30", latest: true}, lbl)],
+    ["Thu, Oct 29, 2026 (provisional)", "Tue, Dec 30, 2025 (latest)"], "b12: every day-list row shows its year");
+  eq(/text: dayText\(x, dateLabel\)/.test(html), true, "b12: the day list is built with dayText");
+}
 class AuthErr extends Error {}
 const isDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
 const mkDay = files => {

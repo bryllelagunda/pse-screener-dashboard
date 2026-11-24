@@ -15,6 +15,7 @@
 //   PNG-CHUNKS a PNG with other chunks or extra bytes   WIREFRAME   docs/wireframe.png changed (pinned by sha256)
 //   RESULTS-SHAPED results CSV text                     TOKEN       a GitHub token shape
 //   ROWS       a stock row anywhere in a line           DEMO-ROWS   tests/demo.mjs: CSV-looking lines, symbols, numbers by DEMO
+//   CLOSES     a closes.csv row anywhere in a line: a symbol, then 8+ cells in a row each a number or blank, 3+ numbers
 //   KEY-USE    the key used as a value, stored or sent outside its places, or a navigation call (app.js)
 //   DEMO-WRITE tests/demo.mjs writes a file             DEMO-READ   tests/demo.mjs reads other than its four files
 //   DEMO-LISTEN tests/demo.mjs listens beyond 127.0.0.1 PAGE-DEMO   index.html or app.js: "demo", serviceWorker, caches.
@@ -53,6 +54,32 @@ export function rowAt(l) {
   const toks = l.split(/[\s,;|]+/).map(t => t.split(/["'`=:()[\]{}]+/).filter(Boolean).pop() || "").filter(Boolean); // space-separated rows (3b)
   return toks.some((t, i) => (/^[A-Z][A-Z0-9]{1,4}$/.test(t) || i === 0 && SYM.test(t)) && !MADE_UP.test(t) && nearRow(toks, i, 6, 12));
 }
+// A results/closes.csv row anywhere in a line (T-23 plan § 6.2 D2): a symbol-shaped cell (not made up), then an unbroken
+// run of 8 or more cells that are each a number or blank, the whole run counted (a new or suspended stock's row starts
+// with a long run of blanks), at least 3 of them numbers. A closes row has no date, so ROWS' rule 2 never sees it.
+// The symbol shape is every symbol the page's parser reads (with at least one letter); a sparse row (a long run, mostly
+// blank) counts from one price, since a new or suspended stock's row may hold only one or two.
+const CSYM = /^(?=[A-Z0-9.-]*[A-Z])[A-Z0-9][A-Z0-9.-]{0,11}$/;
+// Every token of every cell counts (a JSON object {"SYM":[1.2,…]}, a space-separated run); null, - and NaN count as blanks.
+// A name directly before = (not == or =>) is an assignment target, not a symbol: it is dropped from this view only.
+const tokCells = l => l.split(/[,\t;|]/).flatMap(c => { const t = c.replace(/[A-Za-z_$][\w$.-]*\s*=(?![=>])/g, " ").split(/[\s"'`=:;()[\]{}]+/).filter(Boolean); return t.length ? t : [""]; });
+const CBLANK = /^(|null|-|NaN)$/;
+// Both views of the line: each cell's last token (keyed objects, label=value cells, date-keyed rows) and every token
+// (an object keyed by symbol, a space-separated run). Either match refuses.
+export const closesAt = l => runAt(cellsOf(l)) || runAt(tokCells(l));
+function runAt(cells) {
+  for (let i = 0; i < cells.length; i++) {
+    if (!CSYM.test(cells[i]) || NUM.test(cells[i]) || MADE_UP.test(cells[i])) continue; // 1E3 is a number, not a symbol
+    let j = i + 1, nums = 0;
+    for (; j < cells.length && (CBLANK.test(cells[j]) || NUM.test(cells[j])); j++) if (NUM.test(cells[j])) nums++;
+    if (j - i - 1 >= 8 && nums >= 3 || j - i - 1 >= 20 && nums >= 1) return true;
+  }
+  return false;
+}
+// The closes.csv header anywhere in a line, quoted or not, split by , tab ; or | (checked in every file, this one too:
+// the pattern's own text never matches itself)
+const CLOSES_HEAD = /symbol["'`]?\s*[,\t;|]\s*["'`]?\d{4}-\d{2}-\d{2}\b/;
+const CLOSES_FIX = "if this is not price data, break the run of numbers; made-up symbols: DEMO…, ZZ…, SYN";
 const ROW_FIX = "if this is not price data, drop the date or move the numbers off the line; made-up symbols: DEMO…, ZZ…, SYN";
 const DEMO_OK = new Set(["GET", "POST", "PUT", "OK", "UTC", "PSE", "CSV", "PNG"]);
 const UNSAFE = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|srcdoc|setAttribute\(\s*["'`]on|javascript:|set(Timeout|Interval)\(\s*["'`]|\.src\s*=|createElement(NS)?\s*\([^)]*["'`]script["'`]|["'`]\s*script\s*["'`]|\bimport\s*\(|new\s+(Shared)?Worker\b|importScripts/i;
@@ -91,8 +118,10 @@ export function leaks(files) {
     if (/\.(jpe?g|gif|webp)$/i.test(path)) continue; // refused by the allowlist above
     const t = bytes.toString("utf8");
     if (path !== "tests/static.mjs") each(t, RESULTS, n => fail("RESULTS-SHAPED", path, n, "results-shaped data"));
+    each(t, CLOSES_HEAD, n => fail("RESULTS-SHAPED", path, n, "the closing-prices file's header"));
     each(t, TOKEN, n => fail("TOKEN", path, n, "token-like string"));
     if (/\.md$/.test(path)) mdHtml(path, t, fail);
+    t.split("\n").forEach((l, i) => { if (closesAt(l)) fail("CLOSES", path, i + 1, "looks like a closing-price row (symbol, then numbers)", CLOSES_FIX); });
     if (path === "tests/demo.mjs") demoRows(t, fail);
     else t.split("\n").forEach((l, i) => {
       if (ROW_START.test(l)) fail("ROWS", path, i + 1, "line starts like a stock row (symbol, then a comma)", ROW_FIX);
@@ -124,8 +153,12 @@ function mdHtml(path, t, fail) {
 export function textLeaks(text) {
   const {out, fail} = finder();
   each(text, RESULTS, n => fail("RESULTS-SHAPED", "message", n, "results-shaped data"));
+  each(text, CLOSES_HEAD, n => fail("RESULTS-SHAPED", "message", n, "the closing-prices file's header"));
   each(text, TOKEN, n => fail("TOKEN", "message", n, "token-like string"));
-  text.split("\n").forEach((l, i) => { if (ROW_START.test(l) || rowAt(l)) fail("ROWS", "message", i + 1, "looks like a price row"); });
+  text.split("\n").forEach((l, i) => {
+    if (ROW_START.test(l) || rowAt(l)) fail("ROWS", "message", i + 1, "looks like a price row");
+    if (closesAt(l)) fail("CLOSES", "message", i + 1, "looks like a closing-price row");
+  });
   return out;
 }
 
@@ -159,7 +192,7 @@ function png(path, b, fail) {
   }
   if (!end || o !== b.length) fail("PNG-CHUNKS", path, 1, "PNG must end at IEND with nothing after it");
   const raw = b.toString("latin1");
-  if (RESULTS.test(raw)) fail("RESULTS-SHAPED", path, 1, "results-shaped data inside a picture");
+  if (RESULTS.test(raw) || CLOSES_HEAD.test(raw)) fail("RESULTS-SHAPED", path, 1, "results-shaped data inside a picture");
   if (TOKEN.test(raw)) fail("TOKEN", path, 1, "token-like string inside a picture");
 }
 

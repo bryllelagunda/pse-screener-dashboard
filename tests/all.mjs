@@ -7,7 +7,7 @@ import {fileURLToPath} from "node:url";
 import {ensureHook} from "./static.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
-const RUNS = [["static.mjs"], ["guards.mjs"], ["screens.mjs"], ["status.mjs"], ["history.mjs"], ["summary.mjs"], ["key.mjs"], ["demo.mjs", "check"]];
+const RUNS = [["static.mjs"], ["guards.mjs"], ["screens.mjs"], ["status.mjs"], ["history.mjs"], ["summary.mjs"], ["key.mjs"], ["chart.mjs"], ["demo.mjs", "check"]];
 let failed = 0, total = RUNS.length;
 const rows = [];
 if (!process.env.GITHUB_ACTIONS) {

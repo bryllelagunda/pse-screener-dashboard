@@ -21,7 +21,7 @@ Public GitHub Pages dashboard for the private `pse-screener` repo. Never commit 
 - `node tests/static.mjs`: size, CSP, the one script tag, the three `<link>` tags, file allowlist, manifest, icon,
   no unsafe DOM writes, no data, rows or tokens, the key's uses. `node tests/guards.mjs`: a refusal test for each of
   its guards, and the before-push check in a throwaway repository. CI runs both.
-- `node tests/key.mjs`, `summary.mjs`, `screens.mjs`, `status.mjs`, `history.mjs`: `app.js`'s marked blocks. CI.
+- `node tests/key.mjs`, `summary.mjs`, `screens.mjs`, `status.mjs`, `history.mjs`, `chart.mjs`: `app.js`'s marked blocks. CI.
 - `node tests/demo.mjs serve|check`: the page with made-up data on 127.0.0.1 for `/qa` and `/design-review`
   (`--help` lists the flags); `check` runs in CI.
 - `node tests/icon.mjs`: rebuilds `icon.png`.

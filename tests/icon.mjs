@@ -7,14 +7,14 @@ import {join, dirname} from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
 
 const W = 512, LEVELS = 16, BG = [0x16, 0x19, 0x1f], FG = [0x5b, 0x9d, 0xff];
-const LINE = [[118, 360], [210, 268], [280, 318], [394, 162]], HALF = 17; // all inside 51..461 (the 80% zone)
+const linePts = [[118, 360], [210, 268], [280, 318], [394, 162]], HALF = 17; // all inside 51..461 (the 80% zone)
 
 function pixels() { // one palette index per pixel: 0 is the background, LEVELS - 1 the full line colour
   const out = new Uint8Array(W * W);
   for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
     let d = 1e9;
-    for (let i = 1; i < LINE.length; i++) {
-      const [ax, ay] = LINE[i - 1], [bx, by] = LINE[i], dx = bx - ax, dy = by - ay;
+    for (let i = 1; i < linePts.length; i++) {
+      const [ax, ay] = linePts[i - 1], [bx, by] = linePts[i], dx = bx - ax, dy = by - ay;
       const t = Math.max(0, Math.min(1, ((x + 0.5 - ax) * dx + (y + 0.5 - ay) * dy) / (dx * dx + dy * dy)));
       d = Math.min(d, Math.hypot(x + 0.5 - ax - t * dx, y + 0.5 - ay - t * dy));
     }
@@ -29,11 +29,11 @@ function deflate(data) { // zlib header, one final fixed-Huffman block, adler32
   const bits = (v, k) => { acc |= v << n; n += k; while (n >= 8) { bytes.push(acc & 255); acc >>>= 8; n -= 8; } };
   const huff = (code, k) => { let r = 0; for (let i = 0; i < k; i++) r |= ((code >> i) & 1) << (k - 1 - i); bits(r, k); };
   const lit = v => v < 144 ? huff(0x30 + v, 8) : v < 256 ? huff(0x190 + v - 144, 9) : v < 280 ? huff(v - 256, 7) : huff(0xc0 + v - 280, 8);
-  const BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
-  const EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+  const lenBase = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+  const lenExtra = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
   const match = len => { // distance 1: repeat the previous byte
-    let i = BASE.length - 1; while (BASE[i] > len) i--;
-    lit(257 + i); if (EXTRA[i]) bits(len - BASE[i], EXTRA[i]);
+    let i = lenBase.length - 1; while (lenBase[i] > len) i--;
+    lit(257 + i); if (lenExtra[i]) bits(len - lenBase[i], lenExtra[i]);
     huff(0, 5);
   };
   bits(1, 1); bits(1, 2);

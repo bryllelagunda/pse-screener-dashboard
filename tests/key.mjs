@@ -103,28 +103,31 @@ eq([authKind(401, h({})), authKind(403, h({})), authKind(403, h({"x-ratelimit-re
 // ---------------------------------------------------------------- LOAD with Forget key (the real gh() and fileText(), a fake fetch)
 // Each made-up file is text "rows <date>"; parseCSV reads its date, so setCurrent and setCompare run as written.
 function loadHarness(files, cache = null) {
+  files = {...files}; // each harness its own copy: a test may replace a file mid-run
   const mem = new Map(cache ? [["cache", cache]] : []), asked = [], gates = [];
   const store = {get: (k, d) => mem.has(k) ? mem.get(k) : d, set: (k, v) => { mem.set(k, JSON.parse(JSON.stringify(v))); return true; }, del: k => mem.delete(k)};
-  let hold = false; // true: every request waits until release(); a file name: only that one waits
+  let hold = false, drawn = 0, onDraw = null; // drawn: chart redraws asked for; hold true: every request waits until release(); a file name: only that one waits
   const fetch = async (url, o) => {
     const f = String(url).replace(/^.*\/contents\//, ""); asked.push(f);
+    const v = files[f]; // the file as it was when asked for (a run may replace it while the answer is on its way)
     if (hold === true || hold === f) await new Promise(r => gates.push(r));
     if (o.signal && o.signal.aborted) throw o.signal.reason;
-    const v = files[f];
     return v === 401 ? new Response("{}", {status: 401}) : v === undefined ? new Response("{}", {status: 404}) : new Response(v, {status: 200});
   };
   const parseCSV = t => [{data_date: String(t).split(" ")[1] || null}];
   const S = {key: "k-made-up", rows: null, date: null, meta: null, updated: null, tried: null, loading: 0, cached: false, index: [], status: null,
     holidays: new Set(), cmpRows: null, cmpDate: null, authErr: false, noAccess: false, refreshErr: null, msg: null, parity: 0, fixtureBad: 0};
-  const names = "S, store, fetch, parseCSV, isDay, addDays, manilaISO, dayDiff, plural, showKey, renderHeader, renderSummary, renderBars, cleanIndex, PRESETS, evaluate, parseHistory, checkFixture, API";
+  const names = "S, store, fetch, parseCSV, isDay, addDays, manilaISO, dayDiff, plural, showKey, renderHeader, renderSummary, renderBars, cleanIndex, PRESETS, evaluate, parseHistory, checkFixture, API, chartChanged";
   const L = new Function(...names.split(", "), "let H = {state: \"loading\"};\nconst renderAll = () => dropDay();\n" +
-    block("/* KEY-START", "/* KEY-END */") + block("/* DAY-START", "/* DAY-END */") + block("/* LOAD-START", "/* LOAD-END */") +
-    "; return {loadRemote, refresh, forgetKey, pickDay, dropDay, onLatest, fileText, AuthError, setCompare, renderAll, saveCache, dgen: () => dgen, gen: () => gen};")(
+    block("/* KEY-START", "/* KEY-END */") + block("/* DAY-START", "/* DAY-END */") + block("/* CHART-START", "/* CHART-END */") + block("/* LOAD-START", "/* LOAD-END */") +
+    "; return {loadRemote, refresh, forgetKey, pickDay, dropDay, onLatest, fileText, AuthError, setCompare, renderAll, saveCache, dgen: () => dgen, gen: () => gen," +
+    " loadCloses, dropCloses, saveKey, CL: () => CL, latestRows, latestEntry, chartState, LATEST: () => LATEST};")(
     S, store, fetch, parseCSV, d => /^\d{4}-\d{2}-\d{2}$/.test(d), () => "", () => "", () => 0, () => "", () => {}, () => {}, () => {}, () => {},
-    x => x, {}, () => [], () => ({state: "ok"}), () => {}, "https://api.github.com/repos/made-up");
-  return {S, mem, asked, L, hold: v => { hold = v; }, release: () => { while (gates.length) gates.shift()(); }};
+    x => x, {}, () => [], () => ({state: "ok"}), () => {}, "https://api.github.com/repos/made-up", () => { drawn++; if (onDraw) onDraw(); });
+  return {S, mem, asked, L, files, drawn: () => drawn, setDraw: f => { onDraw = f; }, hold: v => { hold = v; }, release: () => { while (gates.length) gates.shift()(); }};
 }
 const tick = () => new Promise(r => setTimeout(r, 0));
+const ok = (c, what) => eq(!!c, true, what);
 const IDX = JSON.stringify([{date: "2026-11-20", final: true}, {date: "2026-11-19", final: true}, {date: "2026-11-18", final: true}, {date: "2026-11-17", final: true}]);
 const FILES = {"results/latest.csv": "rows 2026-11-20", "results/index.json": IDX, "data/holidays.csv": "date", "results/2026-11-19.csv": "rows 2026-11-19",
   "results/2026-11-18.csv": "rows 2026-11-18", "results/2026-11-17.csv": "rows 2026-11-17"};
@@ -180,6 +183,100 @@ const FILES = {"results/latest.csv": "rows 2026-11-20", "results/index.json": ID
   const c = T.mem.get("cache") || {};
   eq([T.S.date, T.S.cmpDate, T.S.authErr, c.csv, c.cmp && c.cmp.date], ["2026-11-20", "2026-11-18", true, "rows 2026-11-20", "2026-11-18"],
     "refused key on the compare file alone: fresh results on screen and saved, the earlier comparison kept, the key warning on");
+}
+
+// ---------------------------------------------------------------- the price chart's file (T-23 plan § 3.2, § 3.3; tests b7-b10, b17-b20)
+// A made-up closes file and its stamp; the latest index entry carries the stamp of the run that wrote it
+const { createHash } = await import("node:crypto");
+const stamp = t => createHash("sha256").update(t).digest("hex").slice(0, 16);
+const CDATES = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"];
+const closesOf = k => ["symbol"].concat(CDATES).join(",") + "\n" + ["DEMOA", "DEMOB"].map((sym, j) => [sym].concat(CDATES.map((_, i) => String(10 + j + i + k))).join(",")).join("\n") + "\n";
+const C1 = closesOf(0), C2 = closesOf(0.5);
+const idxWith = (e0, rest = []) => JSON.stringify([e0, ...rest, {date: "2026-11-19", final: true}, {date: "2026-11-18", final: true}]);
+const E1 = {date: "2026-11-20", final: true, finished_at: "2026-11-20T10:00:00Z", closes_sha256: stamp(C1)};
+const CFILES = {...FILES, "results/closes.csv": C1, "results/index.json": idxWith(E1)};
+const closesAsked = T => T.asked.filter(f => f === "results/closes.csv").length;
+const view = (T, sym = "DEMOA") => T.L.chartState({cl: T.L.CL(), sym, rows: T.L.latestRows(), meta: T.L.latestEntry(), end: T.S.date, months: 3});
+const settle = async () => { for (let i = 0; i < 8; i++) await tick(); };
+{ // b7: one request for every panel; one more for a new latest entry, and only one
+  const T = loadHarness(CFILES); await T.L.loadRemote();
+  T.hold("results/closes.csv"); const a = T.L.loadCloses(); T.L.loadCloses(); await tick(); T.release(); T.hold(false); await a; await settle();
+  T.L.loadCloses(); await settle();
+  eq([closesAsked(T), T.L.CL().state, !!view(T).draw], [1, "ok", true], "b7: three panels (two while loading) send one request, and the chart draws");
+  const E2 = {...E1, finished_at: "2026-11-20T11:00:00Z", closes_sha256: stamp(C2)};
+  T.files["results/index.json"] = idxWith(E2); T.files["results/closes.csv"] = C2; await T.L.loadRemote();
+  T.L.loadCloses(); await settle(); T.L.loadCloses(); await settle();
+  eq([closesAsked(T), T.L.CL().stamp === stamp(C2), !!view(T).draw], [2, true, true], "b7: a new latest entry reloads once, then draws the new file");
+}
+{ // b8 and b10: Forget key while the file loads: the late file lands nowhere, and nothing of it is saved in the browser
+  const T = loadHarness(CFILES); await T.L.loadRemote(); T.hold("results/closes.csv");
+  const a = T.L.loadCloses(); await tick(); T.L.forgetKey(); T.release(); await a; await settle();
+  eq([T.L.CL().state, T.L.CL().by === undefined], ["idle", true], "b8: Forget key mid-load: the late file is not kept");
+  const U = loadHarness(CFILES); await U.L.loadRemote(); await U.L.loadCloses(); await settle();
+  const saved = JSON.stringify([...U.mem.values()]), row = ["DEMOA"].concat(CDATES.map((_, i) => String(10 + i))).join(",");
+  eq([U.L.CL().state, saved.includes("symbol," + CDATES[0]), saved.includes(row), U.mem.has("closes")], ["ok", false, false, false],
+    "b10: after a chart load no pse.* value holds the closes header or a row");
+}
+{ // b9: a refused key marks the key refused only when it was sent with the key still saved
+  const T = loadHarness({...CFILES, "results/closes.csv": 401}); await T.L.loadRemote(); T.S.authErr = false;
+  await T.L.loadCloses(); await settle();
+  eq([T.L.CL().state, T.S.authErr, view(T).say], ["auth", true, "Prices can't load until the key is fixed (see above)."], "b9: a refused closes file marks the current key refused");
+  // Review 2026-11-24 (specialist): a one-off refusal clears once a refresh shows the key works
+  T.files["results/closes.csv"] = C1; await T.L.loadRemote(); T.L.loadCloses(); await settle();
+  eq([T.S.authErr, T.L.CL().state], [false, "ok"], "b9: after a good refresh the chart loads again");
+  const U = loadHarness({...CFILES, "results/closes.csv": 401}); await U.L.loadRemote(); U.S.authErr = false; U.hold("results/closes.csv");
+  const a = U.L.loadCloses(); await tick(); U.L.forgetKey(); U.S.key = "k-new"; U.release(); await a; await settle();
+  eq([U.S.authErr, U.L.CL().state], [false, "idle"], "b9: a refusal that returns after Forget key says nothing about the new key");
+}
+{ // b17: reload once per results change; a file a day behind does not loop; a new key or Forget key drops the old prices
+  const P1 = {...E1, final: false, finished_at: "2026-11-20T06:00:00Z", closes_sha256: stamp(C1)};
+  const T = loadHarness({...CFILES, "results/index.json": idxWith(P1)}); await T.L.loadRemote(); await T.L.loadCloses(); await settle();
+  T.files["results/index.json"] = idxWith({...P1, final: true, finished_at: "2026-11-20T10:00:00Z", closes_sha256: stamp(C2)}); T.files["results/closes.csv"] = C2;
+  await T.L.loadRemote(); T.L.loadCloses(); await settle();
+  eq([closesAsked(T), T.L.CL().stamp === stamp(C2)], [2, true], "b17: the same day's provisional-to-final change reloads the file");
+  T.files["results/index.json"] = idxWith({...E1, finished_at: "2026-11-21T10:00:00Z", closes_sha256: stamp(closesOf(9))}); // the run failed after writing the results
+  await T.L.loadRemote(); for (let i = 0; i < 4; i++) { T.L.loadCloses(); await settle(); }
+  eq([closesAsked(T), view(T).say], [3, "Prices are being updated: the chart comes back after the next run."], "b17: a file that stays behind reloads once, not in a loop");
+  globalThis.$ = id => ({value: id === "keyin" ? "k-other" : id === "kdate" ? "2099-01-01" : "", focus() {}, textContent: ""});
+  const keysSent = []; T.setDraw(() => { keysSent.push(T.S.key); });
+  T.L.saveKey(); eq([T.L.CL().state, T.L.CL().by === undefined, keysSent], ["idle", true, ["k-other"]], "b17: saving a new key drops the old prices; the redraw sees only the new key");
+  T.setDraw(null);
+  await T.L.loadCloses(); await settle(); T.L.forgetKey(); eq([T.L.CL().state, T.L.CL().by === undefined], ["idle", true], "b17: Forget key drops the prices");
+  delete globalThis.$;
+}
+{ // b18: on an earlier day the latest run's rows decide the state, not the picked day's
+  const T = loadHarness(CFILES); await T.L.loadRemote(); await T.L.loadCloses(); await settle();
+  await T.L.pickDay("2026-11-18");
+  T.L.LATEST().rows = [{symbol: "DEMOA"}, {symbol: "DEMOB"}, {symbol: "DEMOC"}]; T.S.rows = [{symbol: "DEMOA", fetch_error: "made-up timeout"}];
+  eq([!!T.L.LATEST(), T.S.date, !!view(T).draw], [true, "2026-11-18", true], "b18: a fetch error in the picked day's rows does not hide the chart");
+  eq(view(T, "DEMOC").say, "No usable prices for DEMOC in the last run.", "b18: in the latest run without a closes row or fetch error: no usable prices");
+  ok(view(T).draw.w[1] === CDATES.indexOf("2026-11-18"), "b18: the chart ends on the picked day");
+}
+{ // b19: refresh and chart answers interleaved across a provisional and a final run of one day: nothing drawn from another run's file
+  const P1 = {...E1, final: false, finished_at: "2026-11-20T06:00:00Z", closes_sha256: stamp(C1)}, F2 = {...E1, closes_sha256: stamp(C2)};
+  const drawnOk = T => { const v = view(T), e = T.L.latestEntry(); return !v.draw || T.L.CL().stamp === e.closes_sha256 && v.draw.v === T.L.CL().by.get("DEMOA"); };
+  // order 1: the chart asks during the provisional run, the final run lands, then the chart answer (the provisional file) arrives
+  const A = loadHarness({...CFILES, "results/index.json": idxWith(P1)}); await A.L.loadRemote(); A.hold("results/closes.csv");
+  const a = A.L.loadCloses(); await settle(); A.hold(false);
+  A.files["results/index.json"] = idxWith(F2); A.files["results/closes.csv"] = C2; await A.L.loadRemote();
+  A.release(); await a; await settle();
+  eq([A.L.CL().stamp === stamp(C1), view(A).say, drawnOk(A)], [true, "Prices are being updated: the chart comes back after the next run.", true], "b19 order 1: the provisional file is not drawn beside the final results");
+  A.L.loadCloses(); await settle(); eq([!!view(A).draw, A.L.CL().stamp === stamp(C2), drawnOk(A)], [true, true, true], "b19 order 1: one reload draws the final file");
+  // order 2: the refresh asks first, the final file is written, the chart answer (final) lands before the refresh answer (provisional index)
+  const B = loadHarness({...CFILES, "results/index.json": idxWith(P1)}); await B.L.loadRemote(); B.hold("results/index.json");
+  const r = B.L.loadRemote(); await settle(); B.hold(false);
+  B.files["results/closes.csv"] = C2; B.files["results/index.json"] = idxWith(F2);
+  await B.L.loadCloses(); await settle();
+  eq([B.L.latestEntry().closes_sha256 === stamp(C1), !!view(B).draw, drawnOk(B)], [true, false, true], "b19 order 2: the final file is not drawn beside the provisional results");
+  B.release(); await r; await settle();
+  eq([B.L.latestEntry().closes_sha256 === stamp(C1), !!view(B).draw, drawnOk(B)], [true, false, true], "b19 order 2: the older refresh answer still shows no chart");
+  await B.L.loadRemote(); B.L.loadCloses(); await settle();
+  eq([!!view(B).draw, drawnOk(B)], [true, true], "b19 order 2: once the final results land, the final file draws");
+}
+{ // b20: build (a) reverted: a latest entry without closes_sha256 never draws
+  const T = loadHarness({...CFILES, "results/index.json": idxWith({date: "2026-11-20", final: true, finished_at: "2026-11-20T10:00:00Z"})});
+  await T.L.loadRemote(); await T.L.loadCloses(); await settle();
+  eq([T.L.CL().state, view(T).say], ["ok", "Prices are being updated: the chart comes back after the next run."], "b20: no stamp in the latest entry: no chart");
 }
 
 if (bad) { console.log(`${bad} of ${n} checks failed`); process.exit(1); }

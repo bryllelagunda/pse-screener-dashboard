@@ -15,7 +15,7 @@
 <meta name="color-scheme" content="dark">
 <title>PSE Screener</title>
 <style>
-:root{--bg:#16191f;--panel:#1d2129;--line:#2b313b;--text:#e6e9ee;--muted:#98a2b0;--accent:#5b9dff;--accent2:#a9cbff;--up:#3fb27f;--down:#f0645a;--warn:#e0b04f;--hh:0px}
+:root{--bg:#16191f;--panel:#1d2129;--line:#2b313b;--text:#e6e9ee;--muted:#98a2b0;--accent:#5b9dff;--accent2:#a9cbff;--up:#3fb27f;--down:#f0645a;--warn:#e0b04f;--hh:0px;--c-close:#4a8ef0;--c-50:#c4823c;--c-200:#a46ee0}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
@@ -124,6 +124,15 @@ td .nm.ph{display:none}
 #sp dl{display:grid;grid-template-columns:1fr auto;margin:0}
 #sp dt,#sp dd{padding:7px 0;border-bottom:1px solid var(--line);margin:0}#sp dt{color:var(--muted)}#sp dd{text-align:right}
 .note{font-size:12px;color:var(--muted);margin-top:12px}
+#spc{margin-top:8px}#svgns{display:none}.chh{display:flex;align-items:center;justify-content:space-between;gap:8px}.chh h3{margin:6px 0}
+.rng{display:flex;gap:6px}.rng button{min-height:36px;padding:0 12px;font-size:13px}
+.chs{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 16px;text-align:center;font-size:13px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;box-sizing:border-box}
+.chp{touch-action:pan-y;cursor:crosshair;border-radius:4px}.chp svg{display:block;overflow:visible}
+.chp path{fill:none;stroke-linejoin:round;stroke-linecap:round}.chp .cl{stroke:var(--c-close);stroke-width:2}.chp .a5{stroke:var(--c-50);stroke-width:1.5}.chp .a2{stroke:var(--c-200);stroke-width:1.5}
+.chp .gr{stroke:var(--line);stroke-width:1}.chp .tk{font-size:12px;fill:var(--muted);paint-order:stroke;stroke:var(--panel);stroke-width:3px;stroke-linejoin:round}.chp .hx{stroke:var(--muted);stroke-width:1;stroke-dasharray:2 3}.chp .dot{fill:var(--c-close);stroke:var(--panel);stroke-width:2}
+.chp .lv{stroke-width:1.5;stroke-dasharray:5 4}.lv.lb{stroke:var(--muted)}.lv.lc{stroke:var(--down)}.lv.lt{stroke:var(--up)}.tk.lb{fill:var(--muted)}.tk.lc{fill:var(--down)}.tk.lt{fill:var(--up)}
+.cro{margin-top:4px;min-height:15px;font-size:12px}.legend .k{display:inline-block;width:14px;height:0;border-top:2px solid var(--c-close)}.legend .k.a5{border-color:var(--c-50)}.legend .k.a2{border-color:var(--c-200)}.legend .k.lv{border-top:2px dashed var(--muted)}.legend .off{opacity:.6}
+.chsum{margin-top:6px;font-size:12px;color:var(--muted)}.chs.warn{color:var(--warn)}
 .fail{margin:4px 0 0;padding-left:18px}
 .why{color:var(--down)}
 details>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
@@ -172,6 +181,7 @@ thead th .th button:first-child{width:auto;white-space:normal}
  #chips button{flex:none}
  #q{width:100%}
  #sp{width:100%;border-left:0}
+ .rng button{min-height:44px}
  #scrim{display:none}
  td .nm.ph{display:block}td .nm.x{display:none}
 }
@@ -281,6 +291,7 @@ body:has(#boot) header .row,body:has(#boot) main>:not(#boot){display:none}
 <aside id="sp" role="dialog" aria-modal="true" aria-labelledby="sps" tabindex="-1" hidden>
  <div class="top"><div><div id="sps"></div><div id="spn" class="small muted"></div></div><button id="spx" type="button" aria-label="Close">✕</button></div>
  <div id="spsr" class="sr" role="status"></div>
+ <div id="spc"></div><svg id="svgns" aria-hidden="true"></svg>
  <div id="spm">
   <div class="row" style="margin-top:12px"><button id="spstar" type="button"></button></div>
   <h3>My notes</h3>
@@ -296,6 +307,6 @@ body:has(#boot) header .row,body:has(#boot) main>:not(#boot){display:none}
  </div>
  <div id="spb"></div>
 </aside>
-<script src="app.js?v=d14cd025b39805c2" integrity="sha384-0UzQJbOYBcL78S+vzikAwc4E4FfszOAmB8nv5kDCbWGdUn6/2XsE1BhxDfeTqTII"></script>
+<script src="app.js?v=4eaf63c6fd6b6771" integrity="sha384-Tq9jxv1rZ3Gm/Gy2Yis02MvYUwQ/NGLCRybJ/OOkeO2GI6fGObCA1OND1dDpSCH4"></script>
 </body>
 </html>

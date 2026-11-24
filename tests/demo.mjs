@@ -15,9 +15,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const READ = Object.freeze({"/": "index.html", "/app.js": "app.js", "/manifest.webmanifest": "manifest.webmanifest", "/icon.png": "icon.png"});
 const read = p => { if (!Object.hasOwn(READ, p)) throw new Error("demo.mjs: not a served file"); return readFileSync(join(ROOT, READ[p])); };
 
-const DAYS = ["normal", "empty", "holiday", "stale", "failed", "no-compare", "no-history", "provisional"];
+const DAYS = ["normal", "empty", "holiday", "stale", "failed", "no-compare",
+  "no-history", "provisional", "no-closes"];
 const GITHUB = ["ok", "401", "403", "403-rate", "500", "offline"];
 const FAIL_AS = ["404", "timeout", "401"]; // --fail-as: how the one --fail-day file fails
+const CLOSES_FAIL = ["404", "timeout", "401", "500", "stamp", "bad"]; // --closes-fail: how results/closes.csv fails (stamp: from another run)
 const PINNED = ["2026-11-24", "2026-11-21", "2026-11-30"]; // a Tuesday, a Saturday, a Monday after a made-up holiday (Fri Nov 27)
 const COLUMNS = [
   "symbol",
@@ -47,9 +49,9 @@ const COLUMNS = [
 // The page's own code, sliced by its markers (the pattern tests/screens.mjs uses)
 export function pageCode(js = read("/app.js").toString()) {
   const block = (a, b) => { const i = js.indexOf(a), j = js.indexOf(b); if (i < 0 || j < 0) throw new Error("demo.mjs: " + a + " markers not found"); return js.slice(i, j); };
-  const names = ["filter", "history", "status", "summary", "key"].map(n => n.toUpperCase());
+  const names = ["filter", "history", "status", "summary", "key", "chart"].map(n => n.toUpperCase());
   const src = names.map(n => block("/* " + n + "-START", "/* " + n + "-END */")).join("\n");
-  const names2 = "evaluate, parseCSV, dayRows, parseHistory, HHEAD, PRESETS, missedRun, manilaISO, addDays, isDay, keyBand, shouldRefresh, mood";
+  const names2 = "evaluate, parseCSV, dayRows, parseHistory, HHEAD, PRESETS, missedRun, manilaISO, addDays, isDay, keyBand, shouldRefresh, mood, parseCloses, stampOf";
   return new Function(src + "; return {" + names2 + "};")();
 }
 
@@ -135,6 +137,29 @@ export function dataset(P, day, now) {
   }
   return {date, today, holidays: hol, index, status: st, files, rows: shown.rows};
 }
+// results/closes.csv, made up at run time: every weekday (not a made-up holiday) in the 400 days up to the shown day, a
+// seeded random walk per stock ending on its latest.csv close. No row for a fetch error; of the three short stocks one has
+// no row (left out), one a single close, one only its last 120; one stock skips 4 days (no trade). The latest index entry
+// gets the file's stamp. mode: --closes-fail; stamp: a stamp from another run, bad: a row one cell short.
+export async function withCloses(P, d, mode) {
+  const dates = [];
+  for (let x = d.date; x > P.addDays(d.date, -400); x = P.addDays(x, -1)) if (x === d.date || weekday(x) && !d.holidays.has(x)) dates.unshift(x);
+  const lines = [["symbol"].concat(dates).join(",")], shorts = d.rows.filter(r => r.sessions === 120).map(r => r.symbol);
+  for (const r of d.rows) {
+    if (r.fetch_error || r.symbol === shorts[0]) continue;
+    const rnd = rng("closes" + r.symbol), up = r.pct_vs_sma200 === null || r.pct_vs_sma200 > 0, v = [r.close], dp = r.close < 1 ? 4 : 2;
+    for (let i = 1; i < dates.length; i++) v.unshift(+Math.max(0.01, v[0] / (1 + (up ? 0.0012 : -0.0012) + (rnd() - 0.5) * 0.04)).toFixed(dp));
+    const from = r.symbol === shorts[1] ? dates.length - 1 : r.symbol === shorts[2] ? dates.length - 120 : 0;
+    const cells = v.map((x, i) => i < from || r.symbol === d.rows[5].symbol && i > dates.length - 30 && i < dates.length - 25 ? "" : String(x));
+    lines.push([r.symbol].concat(cells).join(","));
+  }
+  let text = lines.join("\n") + "\n";
+  const index = JSON.parse(d.files["results/index.json"]);
+  index[0].closes_sha256 = mode === "stamp" ? "0".repeat(16) : await P.stampOf(text);
+  if (mode === "bad") text = text.replace(/,[^,\n]*\n/, "\n");
+  d.files["results/closes.csv"] = text; d.files["results/index.json"] = JSON.stringify(index);
+  return d;
+}
 // The two days --fail-day is for: the latest's compare day, and the compare day of the earlier day after it in the list
 export function failDays(d) {
   const finals = d.index.filter(e => e.final && d.files["results/" + e.date + ".csv"]).map(e => e.date).sort().reverse();
@@ -171,6 +196,12 @@ function browserFakes(C, D) {
       if (C.failAs === "401") return json(401, {message: "Bad credentials"});
       if (C.failAs === "404") return json(404, {message: "Not Found"});
       return new Promise((ok, no) => { if (opts.signal) opts.signal.addEventListener("abort", () => no(opts.signal.reason)); }); // timeout: the page's own 30 s abort
+    }
+    if (C.closesFail && path === "/contents/results/closes.csv" && !["stamp", "bad"].includes(C.closesFail)) { // --closes-fail
+      if (C.closesFail === "401") return json(401, {message: "Bad credentials"});
+      if (C.closesFail === "404") return json(404, {message: "Not Found"});
+      if (C.closesFail === "500") return json(500, {message: "made-up server error"});
+      return new Promise((ok, no) => { if (opts.signal) opts.signal.addEventListener("abort", () => no(opts.signal.reason)); }); // timeout: the page gives up at 90 s
     }
     if (C.github === "401") return json(401, {message: "Bad credentials"});
     if (C.github === "403-rate") return json(403, {message: "rate limit"}, {"x-ratelimit-remaining": "0"});
@@ -216,6 +247,7 @@ node tests/demo.mjs check [--today YYYY-MM-DD]   build and check every --day (CI
   --github <mode>       ${GITHUB.join(", ")} (default ok); --refuse is --github 401
   --run ok|fail         how a Run now ends (default ok)
   --fail-day <date> --fail-as 404|timeout|401   only results/<date>.csv fails (timeout: no answer until the page gives up at 30 s)
+  --closes-fail ${CLOSES_FAIL.join("|")}   the price chart's file fails (timeout: 90 s; stamp: from another run; bad: unreadable); --day no-closes: no file yet
   --skew                serve app.js one byte off its fingerprint: the page refuses it and shows only the boot line
   --standalone          act as the home-screen app
   --ua iphone|android|other   the phone the Add to home screen steps are for
@@ -250,6 +282,7 @@ export function parseArgs(argv) {
     else if (f === "--run") { o.run = val(f, i++); if (!["ok", "fail"].includes(o.run)) usage(`unknown --run "${o.run}" (one of: ok, fail)`, "node tests/demo.mjs serve --run fail"); }
     else if (f === "--fail-day") { o.failDay = val(f, i++); if (!/^\d{4}-\d{2}-\d{2}$/.test(o.failDay)) usage(`--fail-day needs YYYY-MM-DD, not "${o.failDay}"`, "node tests/demo.mjs --help (it lists the made-up days)"); }
     else if (f === "--fail-as") { o.failAs = val(f, i++); if (!FAIL_AS.includes(o.failAs)) usage(`unknown --fail-as "${o.failAs}" (one of: ${FAIL_AS.join(", ")})`, "node tests/demo.mjs --help"); }
+    else if (f === "--closes-fail") { o.closesFail = val(f, i++); if (!CLOSES_FAIL.includes(o.closesFail)) usage(`unknown --closes-fail "${o.closesFail}" (one of: ${CLOSES_FAIL.join(", ")})`, "node tests/demo.mjs serve --closes-fail 404"); }
     else if (f === "--skew") o.skew = true;
     else if (f === "--standalone") o.standalone = true;
     else if (f === "--ua") { o.ua = val(f, i++); if (!Object.hasOwn(UA, o.ua)) usage(`unknown --ua "${o.ua}" (one of: iphone, android, other)`, "node tests/demo.mjs serve --ua iphone"); }
@@ -262,7 +295,7 @@ export function parseArgs(argv) {
   return o;
 }
 
-function check(o) {
+async function check(o) {
   const P = pageCode(), dates = o.today ? [o.today] : PINNED, fails = [];
   let ok = 0;
   const fail = m => { fails.push(m); process.stderr.write("demo check FAIL " + m + "\n"); };
@@ -271,6 +304,15 @@ function check(o) {
     const bad = m => { good = false; fail("day=" + day + " " + m); };
     for (const t of dates) {
       const now = new Date(t + "T09:00:00+08:00"), d = dataset(P, day, now);
+      if (day !== "no-closes") { // the made-up closes file parses, has a row for each stock with prices, and carries its stamp
+        await withCloses(P, d, null);
+        const text = d.files["results/closes.csv"], ix = JSON.parse(d.files["results/index.json"]);
+        try { const c = P.parseCloses(text), want = d.rows.filter(r => !r.fetch_error).length - 1;
+          if (c.by.size !== want || c.dates.at(-1) !== d.date) bad(`date=${t} closes.csv: ${c.by.size} rows ending ${c.dates.at(-1)}, want ${want} ending ${d.date}`);
+          if (![...c.by.keys()].every(s => /^DEMO[A-Z]\d?$/.test(s))) bad(`date=${t} closes.csv: a symbol that is not a made-up DEMO symbol`);
+        } catch (e) { bad(`date=${t} closes.csv: ${e.message}`); }
+        if (ix[0].closes_sha256 !== await P.stampOf(text)) bad(`date=${t} closes.csv: the latest index entry's stamp does not match`);
+      }
       const rows = P.parseCSV(d.files["results/latest.csv"]);
       if (rows.length !== 60) bad(`date=${t} latest.csv parsed to ${rows.length} rows, want 60`);
       for (const r of rows) {
@@ -308,12 +350,13 @@ function check(o) {
   if (fails.length) process.exit(1);
 }
 
-function serve(o) {
+async function serve(o) {
   const P = pageCode(), now = new Date(), d = dataset(P, o.day, now), run = Math.floor(Math.random() * 1e9);
+  if (o.day !== "no-closes") await withCloses(P, d, o.closesFail);
   if (o.failDay) { const f = failDays(d); if (!f.all.includes(o.failDay))
     usage(`--fail-day needs one of ${f.all.join(", ")} (latest's compare day: ${f.latestCmp}; an earlier day's compare day: ${f.earlierCmp})`, `node tests/demo.mjs serve --day ${o.day} --fail-day ${f.latestCmp} --fail-as 401`); }
   const C = {run, key: o.key !== "none", exp: o.key === "days" ? P.addDays(d.today, o.keyDays) : null, github: o.github,
-    runResult: o.run, standalone: o.standalone, ua: o.ua ? UA[o.ua] : null, failDay: o.failDay, failAs: o.failAs};
+    runResult: o.run, standalone: o.standalone, ua: o.ua ? UA[o.ua] : null, failDay: o.failDay, failAs: o.failAs, closesFail: o.closesFail};
   inject(read("/").toString()); // refuses to start without exactly one CSP meta tag
   const fakes = fakesJS(C, d.files), JS = "text/javascript; charset=utf-8";
   const TYPES = {"/": "text/html; charset=utf-8", "/app.js": JS, "/fakes.js": JS, "/manifest.webmanifest": "application/manifest+json", "/icon.png": "image/png"};
@@ -333,7 +376,7 @@ function serve(o) {
   server.listen(o.port, "127.0.0.1", () => {
     const key = o.key === "none" ? "none" : o.key === "nodate" ? "nodate" : o.keyDays + "d";
     console.log(`demo ready http://127.0.0.1:${server.address().port}/ day=${o.day} key=${key} github=${o.github} run=${run}` +
-      (o.failDay ? ` fail=${o.failDay}:${o.failAs}` : "") + (o.skew ? " skew=on" : ""));
+      (o.failDay ? ` fail=${o.failDay}:${o.failAs}` : "") + (o.closesFail ? ` closes=${o.closesFail}` : "") + (o.skew ? " skew=on" : ""));
     console.log("switching --day needs a restart (storage is wiped once per start)");
   });
 }
@@ -343,5 +386,5 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!argv.length || argv[0] === "--help" || argv[0] === "-h") { console.log(HELP + "\n" + failHelp()); process.exit(0); }
   if (!["serve", "check"].includes(argv[0])) usage(`unknown command "${argv[0]}" (serve or check)`, "node tests/demo.mjs serve --day normal");
   const o = parseArgs(argv);
-  if (o.cmd === "check") check(o); else serve(o);
+  if (o.cmd === "check") await check(o); else await serve(o);
 }

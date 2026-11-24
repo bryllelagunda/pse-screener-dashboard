@@ -71,6 +71,17 @@ is on screen, and keeps it in the same `localStorage` cache as `latest.csv`. It 
 
 One bad row rejects the whole history file; the rest of the page keeps working.
 
+## Price chart
+
+The stock panel opens with a chart of the closing price: 3 months (**3M**, the default) or a year (**1Y**), with the
+50-day and 200-day averages and your buy, cut-loss and target prices as dashed lines (a far-off one is pinned to the
+edge with an arrow). Drag a finger or move the mouse along it, or use the arrow keys, Home and End, to read one day.
+It reads the private `results/closes.csv` (every stock's closes for about 400 days, written by each full run) the
+first time a panel opens, and once more when newer results arrive. It is kept in memory only, never saved in this
+browser. The chart draws only when the file's stamp equals `closes_sha256` in the latest `index.json` entry, so it
+never pairs with results from another run ("Prices are being updated: the chart comes back after the next run.").
+On an earlier day it ends on that day. Prices are as traded: a stock dividend or split shows as a sudden fall.
+
 ## Saved filter sets
 
 **Save as…** names the current checkboxes and sliders; each saved set gets its own button next to
@@ -118,10 +129,12 @@ Node 22 or later, nothing to install.
 ```bash
 node tests/demo.mjs --help                             # every flag
 node tests/demo.mjs serve --day normal                 # then open the printed address
-node tests/demo.mjs serve --day empty --key-days 3     # days: normal empty holiday stale failed no-compare no-history provisional
+node tests/demo.mjs serve --day empty --key-days 3     # days: normal empty holiday stale failed no-compare no-history provisional no-closes
 node tests/demo.mjs serve --key-days 30 --refuse       # GitHub refuses the key (--github 401|403|403-rate|500|offline)
 node tests/demo.mjs serve --no-key --standalone --ua iphone   # the first screen inside the iPhone home-screen app
 node tests/demo.mjs serve --day normal --fail-day <day> --fail-as 401   # only that day's file fails (404|timeout|401); --help names the days
+node tests/demo.mjs serve --closes-fail timeout       # the chart's file fails (404|timeout|401|500), is from another run (stamp) or unreadable (bad)
+node tests/demo.mjs serve --day no-closes              # no closes file yet: "The chart appears after the next daily run."
 node tests/demo.mjs serve --skew                       # app.js one byte off its fingerprint: only the boot line shows, after 4 s
 ```
 
@@ -141,6 +154,7 @@ node tests/status.mjs                                  # status bar: missed-run 
 node tests/history.mjs                                 # history file checks, Days on list, streaks, Knocking, disagreement (CI)
 node tests/key.mjs                                     # key end date, reminder bars, Later, refused vs rate limit (CI)
 node tests/summary.mjs                                 # the summary and mood words, the ? texts, the 10-minute reload (CI)
+node tests/chart.mjs                                   # the price chart: reading closes.csv, the averages, 3M/1Y, levels, every state's words (CI)
 node tests/demo.mjs check                              # the made-up data sets parse and agree with the page's filter (CI)
 node tests/parity.mjs ../pse-screener ../pse-screener/results/latest.csv
 ```
@@ -155,7 +169,9 @@ Change the filter block and `evaluate` together. The page runs the same check on
 against the CSV's own `pass_strict` and `pass_loose` columns, and shows a red warning if they
 disagree. With a `history.csv` (passed as an argument, or `../pse-screener/results/history.csv`), it
 also checks that history's rows for each results file's date equal the rows the page derives from
-it, printing symbols only.
+it, printing symbols only. With `results/closes.csv` and a `latest.csv` given, it checks the chart's 50- and
+200-day averages and last close against the screener's `sma50`, `sma200` and `close` for every stock, and the
+file's stamp against `index.json` (symbols and counts only).
 
 ## Changing the code
 
@@ -209,7 +225,8 @@ Each refusal starts with its code and gives `path:line` (and the commit for hist
 | <a id="key-block"></a>KEY-BLOCK | the key's end date outside its block, a request inside it, the key in the address, Forget key incomplete | keep `keyExp` inside the KEY block in `app.js` |
 | <a id="key-use"></a>KEY-USE | the key used as a value, stored or sent outside its places, or a navigation call | use the key only as a yes/no check; requests go through `gh()` |
 | <a id="rows"></a>ROWS | a stock row (symbol, date, numbers) anywhere in a line | not price data: drop the date or move the numbers off the line; made-up symbols: `DEMO…`, `ZZ…`, `SYN` |
-| <a id="results-shaped"></a>RESULTS-SHAPED | results CSV header text | remove it |
+| <a id="closes"></a>CLOSES | a closing-price row anywhere in a line: a symbol (any shape the page reads), then 8 or more cells or words in a row that are each a number or a blank (empty, `null`, `-`, `NaN`) with 3 or more numbers, or 20 or more with 1; JSON objects keyed by symbol count | not price data: break the run of numbers; made-up symbols: `DEMO…`, `ZZ…`, `SYN` |
+| <a id="results-shaped"></a>RESULTS-SHAPED | results CSV header text (`latest.csv`'s, or `closes.csv`'s anywhere in a line) | remove it |
 | <a id="token"></a>TOKEN | a GitHub token shape | remove it; revoke the token; message on the tip: `git commit --amend -m "<new message>"` |
 | <a id="demo-rows"></a>DEMO-ROWS, <a id="demo-read"></a>DEMO-READ, <a id="demo-write"></a>DEMO-WRITE, <a id="demo-listen"></a>DEMO-LISTEN | the test server holding rows or real-looking numbers, reading other files, writing, or listening beyond 127.0.0.1 | build data in code from `DEMO` symbols |
 | <a id="manifest"></a>MANIFEST, <a id="icon"></a>ICON, <a id="png-chunks"></a>PNG-CHUNKS, <a id="wireframe"></a>WIREFRAME | the manifest, the icon or a picture changed | `node tests/icon.mjs`; `git checkout origin/main -- <file>` |
