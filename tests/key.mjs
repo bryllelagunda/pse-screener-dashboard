@@ -214,7 +214,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await tick(); };
   eq([T.L.CL().state, T.L.CL().by === undefined], ["idle", true], "b8: Forget key mid-load: the late file is not kept");
   const U = loadHarness(CFILES); await U.L.loadRemote(); await U.L.loadCloses(); await settle();
   const saved = JSON.stringify([...U.mem.values()]), row = ["DEMOA"].concat(CDATES.map((_, i) => String(10 + i))).join(",");
-  eq([U.L.CL().state, saved.includes("symbol," + CDATES[0]), saved.includes(row)], ["ok", false, false],
+  eq([U.L.CL().state, saved.includes("symbol," + CDATES[0]), saved.includes(row), U.mem.has("closes")], ["ok", false, false, false],
     "b10: after a chart load no pse.* value holds the closes header or a row");
 }
 { // b9: a refused key marks the key refused only when it was sent with the key still saved
@@ -239,7 +239,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await tick(); };
   eq([closesAsked(T), view(T).say], [3, "Prices are being updated: the chart comes back after the next run."], "b17: a file that stays behind reloads once, not in a loop");
   globalThis.$ = id => ({value: id === "keyin" ? "k-other" : id === "kdate" ? "2099-01-01" : "", focus() {}, textContent: ""});
   const keysSent = []; T.setDraw(() => { keysSent.push(T.S.key); });
-  T.L.saveKey(); eq([T.L.CL().by === undefined, keysSent], [true, ["k-other"]], "b17: saving a new key drops the old prices; the redraw sees only the new key");
+  T.L.saveKey(); eq([T.L.CL().state, T.L.CL().by === undefined, keysSent], ["idle", true, ["k-other"]], "b17: saving a new key drops the old prices; the redraw sees only the new key");
   T.setDraw(null);
   await T.L.loadCloses(); await settle(); T.L.forgetKey(); eq([T.L.CL().state, T.L.CL().by === undefined], ["idle", true], "b17: Forget key drops the prices");
   delete globalThis.$;

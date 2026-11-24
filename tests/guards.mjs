@@ -230,6 +230,13 @@ for (const p of ["closes.csv", "results/closes.csv", "data/closes.csv"]) refuse(
     refuse("b13: a closes row (" + what + ") in README.md", "CLOSES", {"README.md": add("README.md", row)}, row);
     n++; if (!textLeaks(row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row (" + what + ") in a message passes"); }
   }
+  // Fix-check 2026-11-24: the every-token view must not lose the shapes the last-token view refused (labels before numbers)
+  const kv = (f) => nums(9).map((x, i) => f(i) + x);
+  for (const [what, row] of [["a keyed JSON object", JSON.stringify(Object.assign({symbol: Q3}, ...nums(9).map((x, i) => ({["c" + i]: +x}))))],
+    ["a row keyed by date", '"' + Q3 + '", ' + kv(i => '"2026-01-' + String(10 + i) + '":').join(", ")], ["label=value cells", Q3 + ", " + kv(i => "v" + i + "=").join(", ")]]) {
+    refuse("b13: a closes row (" + what + ") in README.md", "CLOSES", {"README.md": add("README.md", "x " + row)}, row);
+    n++; if (!textLeaks("x " + row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row (" + what + ") in a message passes"); }
+  }
   pass("b13: a made-up symbol's JSON object", {"README.md": add("README.md", "x = " + JSON.stringify({ZZA: nums(9).map(Number)}))}, "CLOSES");
   pass("b13: a number in E notation is not a symbol", {"tests/x.mjs": B("const k = [1E3, 1, 2, 3, 4, 5, 6, 7, 8, 9];\n")}, "CLOSES");
   pass("b13: a run of plain numbers with no symbol is not a row", {"tests/x.mjs": B("const k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];\n")}, "CLOSES");

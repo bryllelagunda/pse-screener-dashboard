@@ -63,8 +63,10 @@ const CSYM = /^(?=[A-Z0-9.-]*[A-Z])[A-Z0-9][A-Z0-9.-]{0,11}$/;
 // Every token of every cell counts (a JSON object {"SYM":[1.2,…]}, a space-separated run); null, - and NaN count as blanks.
 const tokCells = l => l.split(/[,\t;|]/).flatMap(c => { const t = c.split(/[\s"'`=:;()[\]{}]+/).filter(Boolean); return t.length ? t : [""]; });
 const CBLANK = /^(|null|-|NaN)$/;
-export function closesAt(l) {
-  const cells = tokCells(l);
+// Both views of the line: each cell's last token (keyed objects, label=value cells, date-keyed rows) and every token
+// (an object keyed by symbol, a space-separated run). Either match refuses.
+export const closesAt = l => runAt(cellsOf(l)) || runAt(tokCells(l));
+function runAt(cells) {
   for (let i = 0; i < cells.length; i++) {
     if (!CSYM.test(cells[i]) || NUM.test(cells[i]) || MADE_UP.test(cells[i])) continue; // 1E3 is a number, not a symbol
     let j = i + 1, nums = 0;
