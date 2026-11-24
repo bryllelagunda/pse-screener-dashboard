@@ -540,8 +540,9 @@ async function pickDay(d) {
   renderAll();
 }
 // The panel's words for the day on screen: label is null on the latest day, else the picked day's name ("Thu, Oct 29")
-const dayWords = label => label ? {notIn: "Not in the " + label + " scan", notScanned: "Not scanned on " + label, fails: "Fails on " + label, today: "On " + label, traded: "Traded that day"}
-  : {notIn: "Not in today's scan", notScanned: "Not scanned today", fails: "Fails today", today: "Today", traded: "Traded today"};
+const dayWords = label => label ? {notIn: "Not in the " + label + " scan", notScanned: "Not scanned on " + label, fails: "Fails on " + label, today: "On " + label,
+  col: t => t.replace("Traded today", "Traded that day").replace("Today %", "That day %")} // the numbers list's labels
+  : {notIn: "Not in today's scan", notScanned: "Not scanned today", fails: "Fails today", today: "Today", col: t => t};
 const dayText = (x, label) => label(x.date, true) + (x.latest ? " (latest)" : x.prov ? " (provisional)" : ""); // the day list: the year on every row
 /* DAY-END */
 /* CHART-START: the price chart in the stock panel: reading results/closes.csv, the averages, the range, the states and the drawing's numbers (tests/chart.mjs checks it) */
@@ -1482,7 +1483,7 @@ function renderPanel() {
   }
   if (ok) {
     add(el("h3", {text: W.today}));
-    const dl = el("dl"); for (const c of COLS) if (c.f && c.k !== "days") dl.append(el("dt", {text: c.k === "value_today" ? W.traded : c.t}), el("dd", {cls: c.c && row[c.k] ? (row[c.k] > 0 ? "up" : "down") : null, text: c.f(row)}));
+    const dl = el("dl"); for (const c of COLS) if (c.f && c.k !== "days") dl.append(el("dt", {text: W.col(c.t)}), el("dd", {cls: c.c && row[c.k] ? (row[c.k] > 0 ? "up" : "down") : null, text: c.f(row)}));
     add(dl);
   }
   const nreb = H.state === "ok" ? H.dates.filter(d => d < S.date && H.src[d] === "rebuilt").length : 0;
