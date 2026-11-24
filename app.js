@@ -589,6 +589,7 @@ function monthsBack(iso, m) { // the same day m calendar months earlier (the mon
 }
 // [first, last] column of the view: the sessions after end minus the range's months, up to end; null when none is on or before end
 function viewOf(dates, end, months) {
+  if (!cday(end)) return null; // a file without a date ("unknown") has no view
   let b = dates.length - 1; while (b >= 0 && dates[b] > end) b--;
   if (b < 0) return null;
   const cut = monthsBack(end, months); let a = b; while (a > 0 && dates[a - 1] > cut) a--;
@@ -598,8 +599,8 @@ const RANGE = {3: "3 months", 12: "1 year"};
 // What the chart area shows. c: {cl (the loaded file), sym, rows and meta (the LATEST run's), end (the day on screen), months}
 function chartState(c) {
   const {cl, sym} = c;
+  if (cl.state === "auth" || c.nokey) return {say: "Prices can't load until the key is fixed (see above)."};
   if (cl.state === "idle" || cl.state === "loading") return {say: "Loading prices…"};
-  if (cl.state === "auth") return {say: "Prices can't load until the key is fixed (see above)."};
   if (cl.state === "fail") return {say: "Couldn't load prices (" + cl.err + ").", retry: true};
   if (cl.state === "missing") return {say: "The chart appears after the next daily run."};
   if (cl.state !== "ok") return {say: "Price file can't be read (" + cl.err + "). Today's results still work."};
@@ -1236,7 +1237,8 @@ const latestRows = () => LATEST ? LATEST.rows : S.rows;
 function dropCloses() { pgen++; CL = {state: "idle"}; }
 async function loadCloses(again) { // again: Try again after a failed load
   const k = entryKey(latestEntry());
-  if (!S.key || CL.state === "loading" || !again && CL.state !== "idle" && CL.for === k) return;
+  // a refusal retries once a refresh shows the key works (S.authErr cleared)
+  if (!S.key || CL.state === "loading" || !again && CL.state !== "idle" && CL.for === k && !(CL.state === "auth" && !S.authErr)) return;
   const my = ++pgen, kg = gen; CL = {state: "loading", for: k}; // the old prices belong to another run: dropped now
   let next;
   try {
@@ -1399,8 +1401,8 @@ function drawChart() {
   if (!P) return;
   loadCloses();
   const box = $("spc"), sym = P.sym, phone = matchMedia("(max-width:639px)").matches, W = Math.round(box.clientWidth) || (phone ? 358 : 388), H = phone ? 180 : 190;
-  const st = chartState({cl: CL, sym, rows: latestRows(), meta: latestEntry(), end: S.date, months: CH.months}), e = mineOf(sym) || {};
-  const sig = JSON.stringify([sym, S.date, CH.months, st.say || CL.stamp, e.buy, e.cut, e.target, W, H, !!S.meta && S.meta.final === false]);
+  const st = chartState({cl: CL, sym, rows: latestRows(), meta: latestEntry(), end: S.date, months: CH.months, nokey: !S.key}), e = mineOf(sym) || {};
+  const sig = JSON.stringify([sym, S.date, CH.months, st.say || CL.stamp, e.buy, e.cut, e.target, W, H, !LATEST && !!S.meta && S.meta.final === false]);
   if (sig === CH.sig) return;
   CH.sig = sig;
   const f = box.contains(document.activeElement) ? document.activeElement.dataset.f : null;
@@ -1442,11 +1444,12 @@ function drawChart() {
     });
     const key = (c, t, miss) => el("span", {cls: miss ? "off" : null}, el("i", {cls: "k " + c}), t + (miss ? " " + miss : ""));
     box.append(plot, out, el("div", {cls: "legend"}, key("cl", "Close"), key("a5", "50-day average", m.miss50), key("a2", "200-day average", m.miss200), m.lv.length ? key("lv", "My levels") : null),
-      el("div", {cls: "small chsum", text: m.sum + (S.meta && S.meta.final === false ? " The last price is provisional." : "")}),
+      el("div", {cls: "small chsum", text: m.sum + (!LATEST && S.meta && S.meta.final === false ? " The last price is provisional." : "")}),
       el("div", {cls: "note", style: "margin-top:2px", text: "Prices as traded: a stock dividend or split shows as a sudden fall."}));
     show(k);
   }
-  const back = f && box.querySelector('[data-f="' + f + '"]'); if (back) back.focus();
+  // focus stays in the panel: the same control, else the range switch (Try again is gone while loading)
+  const back = f && (box.querySelector('[data-f="' + f + '"]') || box.querySelector(".rng button")); if (back) back.focus();
 }
 function renderPanel() {
   if (!P) return;

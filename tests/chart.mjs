@@ -121,6 +121,9 @@ const GOOD = file([["DEMOA", walk(10, 0.05)], ["DEMOB", walk(5, 0.01, [3, 4, 280
   for (const [what, m] of [["a different stamp", {...meta, closes_sha256: "ff00"}], ["no stamp", {date: D.at(-1)}], ["no entry", null]])
     eq(say(okc, "DEMOA", {meta: m}), "Prices are being updated: the chart comes back after the next run.", "the file is from another run: " + what);
   eq(say(okc, "DEMOA", {end: "2025-09-30"}), "No saved prices up to that day.", "a picked day before the file's first date");
+  // Review 2026-11-24: a picked file without a date ("unknown") threw in monthsBack; no key said "Loading prices…" forever
+  eq(say(okc, "DEMOA", {end: "unknown"}), "No saved prices up to that day.", "a day on screen that is not a date");
+  eq(say({state: "idle"}, "DEMOA", {nokey: true}), "Prices can't load until the key is fixed (see above).", "no key saved");
   ok(C.chartState({cl: okc, sym: "DEMOA", rows, meta, end: D.at(-1), months: 3}).draw, "a matching file and a stock with prices draws");
 }
 // b11: the readout and its keys

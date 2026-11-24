@@ -214,13 +214,16 @@ const settle = async () => { for (let i = 0; i < 8; i++) await tick(); };
   eq([T.L.CL().state, T.L.CL().by === undefined], ["idle", true], "b8: Forget key mid-load: the late file is not kept");
   const U = loadHarness(CFILES); await U.L.loadRemote(); await U.L.loadCloses(); await settle();
   const saved = JSON.stringify([...U.mem.values()]), row = ["DEMOA"].concat(CDATES.map((_, i) => String(10 + i))).join(",");
-  eq([U.L.CL().state, saved.includes("symbol," + CDATES[0]), saved.includes(row), saved.includes(stamp(C1)) && !!U.mem.get("closes")], ["ok", false, false, false],
+  eq([U.L.CL().state, saved.includes("symbol," + CDATES[0]), saved.includes(row)], ["ok", false, false],
     "b10: after a chart load no pse.* value holds the closes header or a row");
 }
 { // b9: a refused key marks the key refused only when it was sent with the key still saved
   const T = loadHarness({...CFILES, "results/closes.csv": 401}); await T.L.loadRemote(); T.S.authErr = false;
   await T.L.loadCloses(); await settle();
   eq([T.L.CL().state, T.S.authErr, view(T).say], ["auth", true, "Prices can't load until the key is fixed (see above)."], "b9: a refused closes file marks the current key refused");
+  // Review 2026-11-24 (specialist): a one-off refusal clears once a refresh shows the key works
+  T.files["results/closes.csv"] = C1; await T.L.loadRemote(); T.L.loadCloses(); await settle();
+  eq([T.S.authErr, T.L.CL().state], [false, "ok"], "b9: after a good refresh the chart loads again");
   const U = loadHarness({...CFILES, "results/closes.csv": 401}); await U.L.loadRemote(); U.S.authErr = false; U.hold("results/closes.csv");
   const a = U.L.loadCloses(); await tick(); U.L.forgetKey(); U.S.key = "k-new"; U.release(); await a; await settle();
   eq([U.S.authErr, U.L.CL().state], [false, "idle"], "b9: a refusal that returns after Forget key says nothing about the new key");

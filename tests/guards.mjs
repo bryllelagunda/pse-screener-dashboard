@@ -224,6 +224,13 @@ for (const p of ["closes.csv", "results/closes.csv", "data/closes.csv"]) refuse(
     refuse("b13: a closes row for symbol shape " + sym.length + " chars in README.md", "CLOSES", {"README.md": add("README.md", "x " + row)}, row);
     n++; if (!textLeaks(row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row for a " + sym.length + "-char symbol in a message passes"); }
   }
+  // Review 2026-11-24 (Claude challenge): a JSON object keyed by symbol, a space-separated run, and - or NaN placeholders
+  for (const [what, row] of [["a JSON object keyed by symbol", "x = " + JSON.stringify({[Q3]: nums(9).map(Number)})],
+    ["space-separated", "note " + [Q3].concat(nums(9)).join(" ")], ["- and NaN placeholders", [Q3, "-", "NaN"].concat(nums(8), ["-"]).join(",")]]) {
+    refuse("b13: a closes row (" + what + ") in README.md", "CLOSES", {"README.md": add("README.md", row)}, row);
+    n++; if (!textLeaks(row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row (" + what + ") in a message passes"); }
+  }
+  pass("b13: a made-up symbol's JSON object", {"README.md": add("README.md", "x = " + JSON.stringify({ZZA: nums(9).map(Number)}))}, "CLOSES");
   pass("b13: a number in E notation is not a symbol", {"tests/x.mjs": B("const k = [1E3, 1, 2, 3, 4, 5, 6, 7, 8, 9];\n")}, "CLOSES");
   pass("b13: a run of plain numbers with no symbol is not a row", {"tests/x.mjs": B("const k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];\n")}, "CLOSES");
   const HEAD = ["symbol", DATE, ["2026", "11", "23"].join("-")].join(",");

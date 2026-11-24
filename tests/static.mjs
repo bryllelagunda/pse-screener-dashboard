@@ -60,12 +60,15 @@ export function rowAt(l) {
 // The symbol shape is every symbol the page's parser reads (with at least one letter); a sparse row (a long run, mostly
 // blank) counts from one price, since a new or suspended stock's row may hold only one or two.
 const CSYM = /^(?=[A-Z0-9.-]*[A-Z])[A-Z0-9][A-Z0-9.-]{0,11}$/;
+// Every token of every cell counts (a JSON object {"SYM":[1.2,…]}, a space-separated run); null, - and NaN count as blanks.
+const tokCells = l => l.split(/[,\t;|]/).flatMap(c => { const t = c.split(/[\s"'`=:;()[\]{}]+/).filter(Boolean); return t.length ? t : [""]; });
+const CBLANK = /^(|null|-|NaN)$/;
 export function closesAt(l) {
-  const cells = cellsOf(l);
+  const cells = tokCells(l);
   for (let i = 0; i < cells.length; i++) {
     if (!CSYM.test(cells[i]) || NUM.test(cells[i]) || MADE_UP.test(cells[i])) continue; // 1E3 is a number, not a symbol
     let j = i + 1, nums = 0;
-    for (; j < cells.length && (cells[j] === "" || cells[j] === "null" || NUM.test(cells[j])); j++) if (NUM.test(cells[j])) nums++;
+    for (; j < cells.length && (CBLANK.test(cells[j]) || NUM.test(cells[j])); j++) if (NUM.test(cells[j])) nums++;
     if (j - i - 1 >= 8 && nums >= 3 || j - i - 1 >= 20 && nums >= 1) return true;
   }
   return false;
