@@ -61,7 +61,8 @@ export function rowAt(l) {
 // blank) counts from one price, since a new or suspended stock's row may hold only one or two.
 const CSYM = /^(?=[A-Z0-9.-]*[A-Z])[A-Z0-9][A-Z0-9.-]{0,11}$/;
 // Every token of every cell counts (a JSON object {"SYM":[1.2,…]}, a space-separated run); null, - and NaN count as blanks.
-const tokCells = l => l.split(/[,\t;|]/).flatMap(c => { const t = c.split(/[\s"'`=:;()[\]{}]+/).filter(Boolean); return t.length ? t : [""]; });
+// A name directly before = (not == or =>) is an assignment target, not a symbol: it is dropped from this view only.
+const tokCells = l => l.split(/[,\t;|]/).flatMap(c => { const t = c.replace(/[A-Za-z_$][\w$.-]*\s*=(?![=>])/g, " ").split(/[\s"'`=:;()[\]{}]+/).filter(Boolean); return t.length ? t : [""]; });
 const CBLANK = /^(|null|-|NaN)$/;
 // Both views of the line: each cell's last token (keyed objects, label=value cells, date-keyed rows) and every token
 // (an object keyed by symbol, a space-separated run). Either match refuses.

@@ -237,6 +237,14 @@ for (const p of ["closes.csv", "results/closes.csv", "data/closes.csv"]) refuse(
     refuse("b13: a closes row (" + what + ") in README.md", "CLOSES", {"README.md": add("README.md", "x " + row)}, row);
     n++; if (!textLeaks("x " + row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row (" + what + ") in a message passes"); }
   }
+  // Advisor 2026-11-24: a name directly before = is an assignment target, not a symbol (the general rule; main's history
+  // holds icon constants written this way), while every pass-2 shape still refuses, labels that look like symbols included
+  pass("b13: number constants assigned to upper-case names", {"tests/x.mjs": B("const LINE = [[118, 360], [210, 268], [280, 318], [394, 162]], HALF = 17;\n  const BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13];\n  const EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1];\n")}, "CLOSES");
+  for (const [what, row] of [["label=value cells with symbol-shaped labels", Q3 + ", " + kv(i => "V" + i + "=").join(", ")],
+    ["a JSON object keyed by symbol", JSON.stringify({[Q3]: nums(9).map(Number)})], ["a JS object keyed by symbol", "{" + Q3 + ": [" + nums(9).join(", ") + "]}"]]) {
+    refuse("b13: a closes row (" + what + ") in README.md", "CLOSES", {"README.md": add("README.md", "x " + row)}, row);
+    n++; if (!textLeaks("x " + row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row (" + what + ") in a message passes"); }
+  }
   pass("b13: a made-up symbol's JSON object", {"README.md": add("README.md", "x = " + JSON.stringify({ZZA: nums(9).map(Number)}))}, "CLOSES");
   pass("b13: a number in E notation is not a symbol", {"tests/x.mjs": B("const k = [1E3, 1, 2, 3, 4, 5, 6, 7, 8, 9];\n")}, "CLOSES");
   pass("b13: a run of plain numbers with no symbol is not a row", {"tests/x.mjs": B("const k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];\n")}, "CLOSES");
