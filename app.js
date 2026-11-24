@@ -1409,7 +1409,7 @@ function drawChart() {
     el("button", {type: "button", "data-f": t, "aria-pressed": String(CH.months === m), text: t, onclick: () => { CH.months = m; drawChart(); }})));
   box.append(el("div", {cls: "chh"}, el("h3", {text: LATEST ? "Price to " + dateLabel(S.date) : "Price"}), rng));
   if (!st.draw) {
-    box.append(el("div", {cls: "chs", role: "status", style: "height:" + H + "px"}, el("span", {text: st.say}),
+    box.append(el("div", {cls: "chs" + (["fail", "auth", "bad"].includes(CL.state) ? " warn" : ""), role: "status", style: "height:" + H + "px"}, el("span", {text: st.say}),
       st.retry ? el("button", {type: "button", "data-f": "again", text: "Try again", onclick: () => { loadCloses(true); drawChart(); }}) : null));
   } else {
     const d = st.draw, m = chartModel(d, e, CH.months, W, H, price), svg = sv("svg", {viewBox: "0 0 " + W + " " + H, width: "100%", height: H, "aria-hidden": "true"});
@@ -1441,7 +1441,7 @@ function drawChart() {
       if (j !== undefined) { ev.preventDefault(); show(j); }
     });
     const key = (c, t, miss) => el("span", {cls: miss ? "off" : null}, el("i", {cls: "k " + c}), t + (miss ? " " + miss : ""));
-    box.append(plot, out, el("div", {cls: "legend"}, key("cl", "Close"), key("a5", "50-day", m.miss50), key("a2", "200-day", m.miss200), m.lv.length ? key("lv", "My levels") : null),
+    box.append(plot, out, el("div", {cls: "legend"}, key("cl", "Close"), key("a5", "50-day average", m.miss50), key("a2", "200-day average", m.miss200), m.lv.length ? key("lv", "My levels") : null),
       el("div", {cls: "small chsum", text: m.sum + (S.meta && S.meta.final === false ? " The last price is provisional." : "")}),
       el("div", {cls: "note", style: "margin-top:2px", text: "Prices as traded: a stock dividend or split shows as a sudden fall."}));
     show(k);
