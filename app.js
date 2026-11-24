@@ -556,7 +556,7 @@ function parseCloses(text) {
     const c = lines[k].split(",");
     if (c.length !== n) throw new Error("line " + (k + 1) + " has " + c.length + " cells, want " + n);
     // a symbol: the shape tests/static.mjs CLOSES refuses in the public repo
-    if (!/^(?=[A-Z0-9.-]*[A-Z])[A-Z0-9][A-Z0-9.-]{0,11}$/.test(c[0]) || by.has(c[0])) throw new Error("line " + (k + 1) + " has no symbol of its own");
+    if (!/^(?=[A-Z0-9.-]*[A-Z])[A-Z0-9][A-Z0-9.-]{0,11}$/.test(c[0]) || /^\d+(\.\d+)?E\d+$/.test(c[0]) || by.has(c[0])) throw new Error("line " + (k + 1) + " has no symbol of its own");
     const v = [];
     for (let j = 1; j < n; j++) {
       if (c[j] === "") { v.push(null); continue; }

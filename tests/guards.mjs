@@ -224,6 +224,7 @@ for (const p of ["closes.csv", "results/closes.csv", "data/closes.csv"]) refuse(
     refuse("b13: a closes row for symbol shape " + sym.length + " chars in README.md", "CLOSES", {"README.md": add("README.md", "x " + row)}, row);
     n++; if (!textLeaks(row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row for a " + sym.length + "-char symbol in a message passes"); }
   }
+  pass("b13: a number in E notation is not a symbol", {"tests/x.mjs": B("const k = [1E3, 1, 2, 3, 4, 5, 6, 7, 8, 9];\n")}, "CLOSES");
   pass("b13: a run of plain numbers with no symbol is not a row", {"tests/x.mjs": B("const k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];\n")}, "CLOSES");
   const HEAD = ["symbol", DATE, ["2026", "11", "23"].join("-")].join(",");
   for (const [what, l] of [["after prose", "the header: " + HEAD], ["indented", "    " + HEAD], ["in a JS string", 'const h = "' + HEAD + '";'], ["quoted cells", ["symbol", DATE, DATE].map(c => '"' + c + '"').join(",")], ["tab-separated", ["symbol", DATE, DATE].join("\t")]]) {

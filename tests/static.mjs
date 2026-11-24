@@ -63,7 +63,7 @@ const CSYM = /^(?=[A-Z0-9.-]*[A-Z])[A-Z0-9][A-Z0-9.-]{0,11}$/;
 export function closesAt(l) {
   const cells = cellsOf(l);
   for (let i = 0; i < cells.length; i++) {
-    if (!CSYM.test(cells[i]) || MADE_UP.test(cells[i])) continue;
+    if (!CSYM.test(cells[i]) || NUM.test(cells[i]) || MADE_UP.test(cells[i])) continue; // 1E3 is a number, not a symbol
     let j = i + 1, nums = 0;
     for (; j < cells.length && (cells[j] === "" || cells[j] === "null" || NUM.test(cells[j])); j++) if (NUM.test(cells[j])) nums++;
     if (j - i - 1 >= 8 && nums >= 3 || j - i - 1 >= 20 && nums >= 1) return true;
