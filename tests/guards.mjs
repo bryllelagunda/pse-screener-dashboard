@@ -13,7 +13,7 @@ import {spawn, spawnSync, execFileSync} from "node:child_process";
 import {mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join, resolve, dirname} from "node:path";
-import {scan, realFiles, scriptTag, ensureHook, HOOK_LOCAL, ROOT} from "./static.mjs";
+import {scan, realFiles, scriptTag, ensureHook, HOOK_LOCAL, ROOT, textLeaks} from "./static.mjs";
 import {inject} from "./demo.mjs";
 import {stamp} from "./stamp.mjs";
 
@@ -192,6 +192,29 @@ refuse("a headerless row in tests/x.mjs", "ROWS", {"tests/x.mjs": B("const a = 1
   refuse("a made-up symbol's row at the start of a line (the old rule)", "ROWS", {"README.md": add("README.md", shapes(ZZ)[0][1])});
   pass("a dated note that is not a row", {"README.md": add("README.md", "T-23 " + D + " shipped 3 of 4 items")}, "ROWS");
   pass("ordinary code starting with a one-letter name", {"tests/x.mjs": B("S, a, b;\nconst q = [Q, 1, 2, 3];\n")}, "ROWS");
+}
+
+// 5d. A closes.csv row (T-23 plan § 6.2 D1-D4, tests b13 and b14): symbol, then a run of numbers or blanks, no date
+for (const p of ["closes.csv", "results/closes.csv", "data/closes.csv"]) refuse("b14: new file " + p, "ALLOWLIST", {[p]: B("x")});
+{ const Q3 = String.fromCharCode(81, 81, 88), ZZ = ["Z", "Z", "A"].join(""), nums = k => Array.from({length: k}, (_, i) => (31.2 + i * 0.05).toFixed(2));
+  const cells = s => [s].concat(nums(9));
+  const shapes = s => [["one-letter, line start", ["Q"].concat(nums(9)).join(",")], ["inside a JS string", 'const x = "' + cells(s).join(",") + '";'],
+    ["a JSON array", "x = " + JSON.stringify([s].concat(nums(9).map(Number)))], ["tab-separated", "x\t" + cells(s).join("\t")], ["pipe-separated", "x | " + cells(s).join(" | ")],
+    ["with blanks", "x = '" + [s, "", "", "31.2", "", "31.3", "", "31.4", "", ""].join(",") + "'"],
+    ["200 blanks first", "x = '" + [s].concat(Array(200).fill(""), nums(3)).join(",") + "'"]];
+  for (const [what, row] of shapes(Q3)) {
+    refuse("b13: a closes row (" + what + ") in README.md", "CLOSES", {"README.md": add("README.md", row)}, row);
+    refuse("b13: a closes row (" + what + ") in app.js", "CLOSES", app('const OWNER = "', "// " + row + '\nconst OWNER = "'), row);
+    refuse("b13: a closes row (" + what + ") in tests/demo.mjs", "CLOSES", {"tests/demo.mjs": add("tests/demo.mjs", "// " + row)}, row);
+    n++; const m = textLeaks("a note\n" + row);
+    if (!m.some(e => e.code === "CLOSES") || JSON.stringify(m).includes(row)) { bad++; console.log("FAIL b13: a closes row (" + what + ") in a commit message: got " + codes(m)); }
+  }
+  for (const [what, row] of shapes(ZZ).slice(1)) pass("b13: a made-up ZZ closes row mid-line (" + what + ")", {"README.md": add("README.md", "Made-up: " + row)}, "CLOSES");
+  pass("b13: seven cells after a symbol is not a row", {"tests/x.mjs": B("const q = [Q, 1, 2, 3, 4, 5, 6, 7]\n")}, "CLOSES");
+  n++; if (scan(real).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: the real tree has a CLOSES hit"); }
+  const HEAD = ["symbol", DATE, ["2026", "11", "23"].join("-")].join(",");
+  refuse("b13: the closes header in README.md", "RESULTS-SHAPED", {"README.md": add("README.md", HEAD)}, HEAD);
+  n++; if (!textLeaks(HEAD).some(e => e.code === "RESULTS-SHAPED")) { bad++; console.log("FAIL b13: the closes header in a commit message passes"); }
 }
 
 // 5c. GitHub Pages publishes CLAUDE.md through Jekyll as a page on the key's address with no policy: Markdown holds no raw

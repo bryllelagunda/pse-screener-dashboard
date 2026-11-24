@@ -425,7 +425,7 @@ function saveKey() {
   const k = $("keyin").value.trim(), d = $("kdate").value, err = validateExpiry(d);
   if (!k) { $("keyin").focus(); return; }
   if (err) { $("kerr").textContent = err; $("kdate").focus(); return; }
-  gen++; S.key = k; store.set("key", k); store.set("keyExp", d); store.del("keyNag"); S.keyBarShown = false;
+  gen++; dropCloses(); S.key = k; store.set("key", k); store.set("keyExp", d); store.del("keyNag"); S.keyBarShown = false;
   $("keyin").value = ""; S.authErr = S.noAccess = false; H = {state: "loading"}; showKey(false); renderAll(); loadRemote();
 }
 function saveDate() {
@@ -434,7 +434,7 @@ function saveDate() {
   store.set("keyExp", d); store.del("keyNag"); showKey(false); renderBars();
 }
 function forgetKey() {
-  gen++; hgen++; S.key = ""; store.del("key"); store.del("keyExp"); store.del("keyNag"); store.del("cache"); H = {state: "missing"}; S.htext = null;
+  gen++; hgen++; dropCloses(); S.key = ""; store.del("key"); store.del("keyExp"); store.del("keyNag"); store.del("cache"); H = {state: "missing"}; S.htext = null;
   Object.assign(S, {rows: null, date: null, meta: null, index: [], status: null, cmpRows: null, cmpDate: null, msg: null, keyBarShown: false,
     authErr: false, noAccess: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false, loading: 0}); // a load still running can't clear it (T-29)
   showKey("key"); renderAll();
@@ -539,7 +539,128 @@ async function pickDay(d) {
   }
   renderAll();
 }
+// The panel's words for the day on screen: label is null on the latest day, else the picked day's name ("Thu, Oct 29")
+const dayWords = label => label ? {notIn: "Not in the " + label + " scan", notScanned: "Not scanned on " + label, fails: "Fails on " + label, today: "On " + label, traded: "Traded that day"}
+  : {notIn: "Not in today's scan", notScanned: "Not scanned today", fails: "Fails today", today: "Today", traded: "Traded today"};
+const dayText = (x, label) => label(x.date, true) + (x.latest ? " (latest)" : x.prov ? " (provisional)" : ""); // the day list: the year on every row
 /* DAY-END */
+/* CHART-START: the price chart in the stock panel: reading results/closes.csv, the averages, the range, the states and the drawing's numbers (tests/chart.mjs checks it) */
+const cday = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)) && new Date(d).toISOString().startsWith(d);
+// closes.csv text -> {dates, by: Map(symbol -> [close or null per date])}; a bad file throws a reason that never quotes a cell
+function parseCloses(text) {
+  const lines = String(text).split("\n"); if (lines.at(-1) === "") lines.pop();
+  const head = (lines[0] || "").split(","), n = head.length, dates = head.slice(1), by = new Map();
+  if (head[0] !== "symbol" || n < 2) throw new Error("the first line is not symbol, then dates");
+  for (let i = 0; i < dates.length; i++) if (!cday(dates[i]) || i && dates[i] <= dates[i - 1]) throw new Error("date " + (i + 1) + " in the first line is not a date after the one before");
+  for (let k = 1; k < lines.length; k++) {
+    const c = lines[k].split(",");
+    if (c.length !== n) throw new Error("line " + (k + 1) + " has " + c.length + " cells, want " + n);
+    if (!/^[A-Z0-9][A-Z0-9.-]{0,11}$/.test(c[0]) || by.has(c[0])) throw new Error("line " + (k + 1) + " has no symbol of its own");
+    const v = [];
+    for (let j = 1; j < n; j++) {
+      if (c[j] === "") { v.push(null); continue; }
+      if (!/^\d+(\.\d+)?$/.test(c[j]) || !(+c[j] > 0)) throw new Error("a cell is not a number above 0 on line " + (k + 1));
+      v.push(+c[j]);
+    }
+    by.set(c[0], v);
+  }
+  return {dates, by};
+}
+// The first 16 hex characters of the text's SHA-256: index.json's closes_sha256 for the run that wrote the file
+async function stampOf(text) {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+  return [...d.slice(0, 8)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+// At each session: the mean of the stock's last n closes up to it, blanks skipped (the screener's sma50/sma200 rule); null before n closes
+function avgLine(v, n) {
+  const out = [], last = [];
+  for (const x of v) {
+    if (x !== null) { last.push(x); if (last.length > n) last.shift(); }
+    let s = 0; if (last.length === n) for (const y of last) s += y;
+    out.push(last.length === n ? s / n : null);
+  }
+  return out;
+}
+function monthsBack(iso, m) { // the same day m calendar months earlier (the month's last day when it has fewer days)
+  const [y, mo, d] = iso.split("-").map(Number), f = new Date(Date.UTC(y, mo - 1 - m, 1)), days = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth(), Math.min(d, days))).toISOString().slice(0, 10);
+}
+// [first, last] column of the view: the sessions after end minus the range's months, up to end; null when none is on or before end
+function viewOf(dates, end, months) {
+  let b = dates.length - 1; while (b >= 0 && dates[b] > end) b--;
+  if (b < 0) return null;
+  const cut = monthsBack(end, months); let a = b; while (a > 0 && dates[a - 1] > cut) a--;
+  return [a, b];
+}
+const RANGE = {3: "3 months", 12: "1 year"};
+// What the chart area shows. c: {cl (the loaded file), sym, rows and meta (the LATEST run's), end (the day on screen), months}
+function chartState(c) {
+  const {cl, sym} = c;
+  if (cl.state === "idle" || cl.state === "loading") return {say: "Loading prices…"};
+  if (cl.state === "auth") return {say: "Prices can't load until the key is fixed (see above)."};
+  if (cl.state === "fail") return {say: "Couldn't load prices (" + cl.err + ").", retry: true};
+  if (cl.state === "missing") return {say: "The chart appears after the next daily run."};
+  if (cl.state !== "ok") return {say: "Price file can't be read (" + cl.err + "). Today's results still work."};
+  const st = c.meta && c.meta.closes_sha256; // a file from another run could disagree with the results beside it
+  if (typeof st !== "string" || st !== cl.stamp) return {say: "Prices are being updated: the chart comes back after the next run."};
+  const row = (c.rows || []).find(r => r.symbol === sym), v = cl.by.get(sym);
+  if (row && row.fetch_error) return {say: "No prices for " + sym + " in the last run (it didn't load). The chart comes back after the next run."};
+  if (!v) return {say: row ? "No usable prices for " + sym + " in the last run." : "No saved prices for " + sym + ": it isn't in the latest run."};
+  const w = viewOf(cl.dates, c.end, c.months);
+  if (!w) return {say: "No saved prices up to that day."};
+  let n = 0; for (let i = w[0]; i <= w[1]; i++) if (v[i] !== null) n++;
+  if (n < 2) return {say: "Not enough trading days to draw a chart yet (" + n + " so far)."};
+  return {draw: {dates: cl.dates, v, w, sessions: row && typeof row.sessions === "number" ? row.sessions : null}};
+}
+// 3 to 5 round ticks; the scale runs from the first to the last
+function niceTicks(lo, hi) {
+  if (!(hi - lo > Math.abs(hi) * 1e-3)) { const p = Math.max(Math.abs(hi) * 0.01, 1e-4); lo -= p; hi += p; } // a flat line still gets a scale
+  for (let e = Math.floor(Math.log10(Math.max(hi - lo, 1e-9))) - 2; ; e++) for (const m of [1, 2, 2.5, 5]) {
+    const s = m * 10 ** e, a = Math.floor(lo / s + 1e-9), b = Math.ceil(hi / s - 1e-9);
+    if (b - a + 1 <= 5 && b - a >= 2) return Array.from({length: b - a + 1}, (_, i) => +((a + i) * s).toFixed(6));
+  }
+}
+const LEVELS = [["buy", "Buy", "lb"], ["cut", "Cut-loss", "lc"], ["target", "Target", "lt"]];
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// The drawing in numbers for a W x H area: lines, ticks, months, levels (in range, or pinned to an edge), summary bits
+function chartModel(d, mine, months, W, H, fmt) {
+  const {dates, v, w} = d, a50 = avgLine(v, 50), a200 = avgLine(v, 200), idx = [];
+  for (let i = w[0]; i <= w[1]; i++) idx.push(i);
+  const seen = []; for (const i of idx) for (const s of [v, a50, a200]) if (s[i] !== null) seen.push(s[i]);
+  const lo0 = Math.min(...seen), hi0 = Math.max(...seen), span = hi0 - lo0 || hi0 * 0.02;
+  let lo = lo0, hi = hi0; const lv = [];
+  for (const [k, name, cls] of LEVELS) {
+    const x = mine && mine[k]; if (typeof x !== "number" || !(x > 0) || !isFinite(x)) continue;
+    const far = x > hi0 + span / 4 ? "up" : x < lo0 - span / 4 ? "down" : null;
+    if (!far) { lo = Math.min(lo, x); hi = Math.max(hi, x); } // within 25 % of the range beyond it: the scale widens
+    lv.push({k, cls, x, far, name, label: name + " " + fmt(x) + (far === "up" ? " ↑" : far === "down" ? " ↓" : "")});
+  }
+  const ticks = niceTicks(lo, hi), ylo = ticks[0], yhi = ticks.at(-1), R = Math.max(...ticks.map(t => fmt(t).length)) * 7 + 8, T = 8, B = 18;
+  const n = idx.length, X = k => +(2 + k * (W - R - 4) / (n - 1)).toFixed(1), Y = y => +(T + (yhi - y) / (yhi - ylo) * (H - T - B)).toFixed(1);
+  const path = s => idx.map((i, k) => s[i] === null ? null : X(k) + "," + Y(s[i])).filter(Boolean).map((p, j) => (j ? "L" : "M") + p).join("");
+  for (const l of lv) l.y = l.far === "up" ? T : l.far === "down" ? H - B : Y(l.x);
+  const mon = [], all = [];
+  for (let k = 1; k < n; k++) {
+    const a = dates[idx[k - 1]], b = dates[idx[k]], m = +b.slice(5, 7);
+    if (a.slice(5, 7) !== b.slice(5, 7) && X(k) < W - R - 14) all.push({x: X(k), t: MON[m - 1] + (m === 1 ? " ’" + b.slice(2, 4) : ""), jan: m === 1});
+  }
+  for (const c of all.filter(c => c.jan).concat(all.filter(c => !c.jan))) if (mon.every(o => Math.abs(o.x - c.x) >= (o.jan || c.jan ? 44 : 34))) mon.push(c); // a year's label first
+  mon.sort((a, b) => a.x - b.x);
+  const vals = idx.map(i => v[i]).filter(x => x !== null), first = vals[0], end = vals.at(-1), chg = (end / first - 1) * 100;
+  const trades = vals.length, after = v.slice(w[1] + 1).filter(x => x !== null).length; // closes up to the end, in all: the run's sessions less those after it
+  const upTo = d.sessions !== null && d.sessions !== undefined ? d.sessions - after : v.slice(0, w[1] + 1).filter(x => x !== null).length;
+  const miss = (s, need) => idx.some(i => s[i] !== null) ? null : upTo < need ? "(needs " + need + " trading days)" : "(not enough saved days)";
+  const sum = RANGE[months] + ": " + (Math.abs(chg) < 0.05 ? "unchanged" : (chg > 0 ? "up " : "down ") + Math.abs(chg).toFixed(1) + "%") + " (₱" + fmt(first) + " to ₱" + fmt(end) + ")." +
+    (n > trades ? " No trades on " + (n - trades) + " of the " + n + " days shown." : "") +
+    lv.filter(l => l.far).map(l => " " + l.name + " ₱" + fmt(l.x) + " is " + (l.far === "up" ? "above" : "below") + " the chart.").join("");
+  return {idx, n, X, Y, R, T, B, ticks: ticks.map(t => ({y: Y(t), t: fmt(t)})), mon, lv, close: path(v), p50: path(a50), p200: path(a200), a50, a200, miss50: miss(a50, 50), miss200: miss(a200, 200), sum};
+}
+// One line under the chart for column i: "Fri, Nov 20 · ₱42.15 close · ₱39.02 50-day · ₱34.24 200-day"
+const readout = (d, m, i, fmt, label) => [label(d.dates[i]), d.v[i] === null ? "no trade" : "₱" + fmt(d.v[i]) + " close",
+  m.a50[i] === null ? null : "₱" + fmt(m.a50[i]) + " 50-day", m.a200[i] === null ? null : "₱" + fmt(m.a200[i]) + " 200-day"].filter(Boolean).join(" · ");
+// The readout's next column for a key (arrows move one day, Home and End jump to the ends); undefined for other keys
+const stepKey = (key, k, n) => { const j = {ArrowLeft: k - 1, ArrowDown: k - 1, ArrowRight: k + 1, ArrowUp: k + 1, Home: 0, End: n - 1}[key]; return j === undefined ? j : Math.min(n - 1, Math.max(0, j)); };
+/* CHART-END */
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila"});
 const safeUrl = u => typeof u === "string" && /^https:\/\/github\.com\//.test(u) ? u : "https://github.com/" + OWNER + "/" + REPO + "/actions";
 
@@ -1103,6 +1224,37 @@ async function loadRemote() {
   }
 }
 const refresh = () => { if (!S.loading) loadRemote(); }; // Refresh in the ⋯ menu: a second press while loading does nothing
+// The price chart's file (T-23): loaded the first time a panel opens, and once more for each new latest results entry
+// (its date, final and finished_at). Parsed into memory and the text dropped: never saved in this browser.
+// CL.state: idle, loading, missing (404), fail (err), auth, bad (err), ok ({stamp, dates, by}); CL.for: the entry it was loaded for
+let pgen = 0, CL = {state: "idle"}; // pgen: like hgen; Forget key and a new key bump it, so a load still running lands nowhere
+const latestEntry = () => (LATEST ? LATEST.meta : S.meta) || null;
+const entryKey = e => e ? JSON.stringify([e.date, e.final, e.finished_at]) : "none";
+const latestRows = () => LATEST ? LATEST.rows : S.rows;
+function dropCloses() { pgen++; CL = {state: "idle"}; }
+async function loadCloses(again) { // again: Try again after a failed load
+  const k = entryKey(latestEntry());
+  if (!S.key || CL.state === "loading" || !again && CL.state !== "idle" && CL.for === k) return;
+  const my = ++pgen, kg = gen; CL = {state: "loading", for: k}; // the old prices belong to another run: dropped now
+  let next;
+  try {
+    const t = await fileText("results/closes.csv", 90);
+    if (my !== pgen) return;
+    if (t === null) next = {state: "missing"};
+    else {
+      const stamp = await stampOf(t);
+      if (my !== pgen) return;
+      try { next = {state: "ok", stamp, ...parseCloses(t)}; } catch (e) { next = {state: "bad", err: e.message}; }
+    }
+  } catch (e) {
+    if (my !== pgen) return;
+    next = e instanceof AuthError ? {state: "auth"} : {state: "fail", err: e.message || "no answer"};
+    if (e instanceof AuthError && kg === gen) { S.authErr = true; renderBars(); } // only for the key it was sent with
+  }
+  const cur = latestEntry(); // checked against the results on screen now, not when it was asked for
+  next.for = next.stamp && cur && cur.closes_sha256 === next.stamp ? entryKey(cur) : k;
+  CL = next; chartChanged();
+}
 /* LOAD-END */
 async function checkFixture(my) {
   try {
@@ -1181,6 +1333,7 @@ async function runNow() {
 // ------------------------------------------------------------------ stock panel
 function openPanel(sym, from, push = true) {
   const first = !P;
+  if (first || P.sym !== sym) CH.at = null; // a new panel's readout starts on the last day
   P = {sym, from: from || (P && P.from) || document.activeElement, pushed: first ? push : P.pushed};
   if (first && push) history.pushState(null, "", pageURL()); else history.replaceState(null, "", pageURL());
   $("sp").hidden = $("scrim").hidden = false; document.body.classList.add("lock");
@@ -1235,21 +1388,79 @@ function clearNotes() {
   if (!saveMine(mineWith(MINE, P.sym, {buy: null, cut: null, target: null, note: "", at: null}))) { $("nerr").textContent = NOSAVE; return; }
   notesFor = null; render();
 }
+// ------------------------------------------------------------------ the price chart (T-23): its numbers come from the CHART block
+// SVG elements take their namespace from the markup's empty svg, so no address sits in the code
+const sv = (tag, a = {}) => { const e = document.createElementNS($("svgns").namespaceURI, tag); for (const k in a) if (a[k] !== null) e.setAttribute(k, a[k]); return e; };
+const CH = {months: 3, at: null, sig: ""}; // the range holds while the page is open; at: the readout's day; sig: what is drawn
+const chartChanged = () => { if (P) drawChart(); };
+function drawChart() {
+  if (!P) return;
+  loadCloses();
+  const box = $("spc"), sym = P.sym, phone = matchMedia("(max-width:639px)").matches, W = Math.round(box.clientWidth) || (phone ? 358 : 388), H = phone ? 180 : 190;
+  const st = chartState({cl: CL, sym, rows: latestRows(), meta: latestEntry(), end: S.date, months: CH.months}), e = mineOf(sym) || {};
+  const sig = JSON.stringify([sym, S.date, CH.months, st.say || CL.stamp, e.buy, e.cut, e.target, W, H, !!S.meta && S.meta.final === false]);
+  if (sig === CH.sig) return;
+  CH.sig = sig;
+  const f = box.contains(document.activeElement) ? document.activeElement.dataset.f : null;
+  box.textContent = "";
+  const rng = el("div", {cls: "chips rng", role: "group", "aria-label": "Chart range"}, ...[[3, "3M"], [12, "1Y"]].map(([m, t]) =>
+    el("button", {type: "button", "data-f": t, "aria-pressed": String(CH.months === m), text: t, onclick: () => { CH.months = m; drawChart(); }})));
+  box.append(el("div", {cls: "chh"}, el("h3", {text: LATEST ? "Price to " + dateLabel(S.date) : "Price"}), rng));
+  if (!st.draw) {
+    box.append(el("div", {cls: "chs", role: "status", style: "height:" + H + "px"}, el("span", {text: st.say}),
+      st.retry ? el("button", {type: "button", "data-f": "again", text: "Try again", onclick: () => { loadCloses(true); drawChart(); }}) : null));
+  } else {
+    const d = st.draw, m = chartModel(d, e, CH.months, W, H, price), svg = sv("svg", {viewBox: "0 0 " + W + " " + H, width: "100%", height: H, "aria-hidden": "true"});
+    for (const t of m.ticks) svg.append(sv("line", {class: "gr", x1: 0, x2: W - m.R, y1: t.y, y2: t.y}), Object.assign(sv("text", {class: "tk", x: W - m.R + 6, y: t.y + 4}), {textContent: t.t}));
+    for (const t of m.mon) svg.append(Object.assign(sv("text", {class: "tk", x: t.x, y: H - 4, "text-anchor": "middle"}), {textContent: t.t}));
+    for (const [p, c] of [[m.p200, "a2"], [m.p50, "a5"], [m.close, "cl"]]) if (p) svg.append(sv("path", {class: c, d: p}));
+    for (const l of m.lv) {
+      svg.append(sv("line", {class: "lv " + l.cls, x1: l.far ? W - m.R - 34 : 0, x2: W - m.R, y1: l.y, y2: l.y}));
+      const ty = l.far === "down" ? l.y - 4 : l.far === "up" ? l.y + 12 : l.y > m.T + 14 ? l.y - 4 : l.y + 13;
+      svg.append(Object.assign(sv("text", {class: "tk " + l.cls, x: l.far ? W - m.R - 38 : 4, y: ty, "text-anchor": l.far ? "end" : "start"}), {textContent: l.label}));
+    }
+    const hair = sv("line", {class: "hx", y1: m.T, y2: H - m.B}), dot = sv("circle", {class: "dot", r: 3.5});
+    svg.append(hair, dot);
+    const out = el("div", {cls: "small cro", "aria-live": "polite"});
+    const plot = el("div", {cls: "chp", role: "slider", tabindex: 0, "data-f": "plot", "aria-label": "Price chart, closing prices. Arrow keys move day by day",
+      "aria-valuemin": 1, "aria-valuemax": m.n}, svg);
+    const was = m.idx.indexOf(d.dates.indexOf(CH.at)); let k = was < 0 ? m.n - 1 : was; // the readout keeps its day when it is in view
+    const show = j => {
+      k = Math.min(m.n - 1, Math.max(0, j)); const i = m.idx[k], x = m.X(k), y = d.v[i] === null ? null : m.Y(d.v[i]);
+      CH.at = d.dates[i]; hair.setAttribute("x1", x); hair.setAttribute("x2", x);
+      dot.setAttribute("cx", x); dot.setAttribute("cy", y === null ? -9 : y);
+      out.textContent = readout(d, m, i, price, dateLabel);
+      plot.setAttribute("aria-valuenow", k + 1); plot.setAttribute("aria-valuetext", out.textContent);
+    };
+    const at = ev => { const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width; show(Math.round((px - m.X(0)) / ((m.X(m.n - 1) - m.X(0)) / (m.n - 1)))); };
+    plot.addEventListener("pointerdown", at); plot.addEventListener("pointermove", at);
+    plot.addEventListener("keydown", ev => {
+      const j = stepKey(ev.key, k, m.n);
+      if (j !== undefined) { ev.preventDefault(); show(j); }
+    });
+    const key = (c, t, miss) => el("span", {cls: miss ? "off" : null}, el("i", {cls: "k " + c}), t + (miss ? " " + miss : ""));
+    box.append(plot, out, el("div", {cls: "legend"}, key("cl", "Close"), key("a5", "50-day", m.miss50), key("a2", "200-day", m.miss200), m.lv.length ? key("lv", "My levels") : null),
+      el("div", {cls: "small chsum", text: m.sum + (S.meta && S.meta.final === false ? " The last price is provisional." : "")}),
+      el("div", {cls: "note", style: "margin-top:2px", text: "Prices as traded: a stock dividend or split shows as a sudden fall."}));
+    show(k);
+  }
+  const back = f && box.querySelector('[data-f="' + f + '"]'); if (back) back.focus();
+}
 function renderPanel() {
   if (!P) return;
   const sym = P.sym, row = (S.rows || []).find(r => r.symbol === sym), b = $("spb"), add = (...k) => b.append(...k);
   const ok = row && !row.fetch_error, on = p => ok && !failures(row, PRESETS[p], S.date).length;
   const had = b.contains(document.activeElement); // the star and note boxes are kept: typing survives a redraw
   $("sps").textContent = sym; $("spn").textContent = [row && row.name, row && okPrice(row.close) && "₱" + price(row.close) + " close"].filter(Boolean).join(" · "); b.textContent = "";
-  syncNotes(row);
-  const hs = H.state === "ok" && H.by.get(sym), cs = S.cmpRows && S.cmpRows.some(r => r.symbol === sym) ? S.cmpDate : null;
+  syncNotes(row); drawChart();
+  const W = dayWords(LATEST ? dateLabel(S.date) : null), hs = H.state === "ok" && H.by.get(sym), cs = S.cmpRows && S.cmpRows.some(r => r.symbol === sym) ? S.cmpDate : null;
   const seen = [hs ? [...hs.keys()].pop() : null, cs].filter(Boolean).sort().pop();
-  add(el("div", {cls: "status"}, !row ? "Not in today's scan" + (seen ? ", last seen " + dateLabel(seen) : "")
-    : !ok ? "Not scanned today (" + row.fetch_error + ")"
+  add(el("div", {cls: "status"}, !row ? W.notIn + (seen ? ", last seen " + dateLabel(seen) : "")
+    : !ok ? W.notScanned + " (" + row.fetch_error + ")"
     : on("strict") ? (on("loose") ? "On Strict and Loose" : "On Strict") : on("loose") ? "On Loose" : "On neither",
   ...(row && row.pass_strict && row.pass_loose ? [el("span", {cls: "badge both", text: "BOTH"}), tipBtn("BOTH")] : []), el("span", {cls: "small muted", text: " · " + dateLabel(S.date)})));
   if (ok && !(on("strict") && on("loose"))) {
-    add(el("h3", {text: "Fails today"}));
+    add(el("h3", {text: W.fails}));
     for (const p in PRESETS) if (!on(p)) add(el("b", {cls: "small", text: NAME[p]}),
       el("ul", {cls: "fail why small"}, ...[...new Set(failures(row, PRESETS[p], S.date).map(f => nice(f, row, PRESETS[p], S.date)))].map(t => el("li", {text: t}))));
   }
@@ -1269,15 +1480,12 @@ function renderPanel() {
       el("div", {cls: "note", text: "Both lines lit: on both that day. Data gaps (no trade, short history, no market cap) never count as a miss."}));
   }
   if (ok) {
-    add(el("h3", {text: "Today"}));
-    const dl = el("dl"); for (const c of COLS) if (c.f && c.k !== "days") dl.append(el("dt", {text: c.t}), el("dd", {cls: c.c && row[c.k] ? (row[c.k] > 0 ? "up" : "down") : null, text: c.f(row)}));
+    add(el("h3", {text: W.today}));
+    const dl = el("dl"); for (const c of COLS) if (c.f && c.k !== "days") dl.append(el("dt", {text: c.k === "value_today" ? W.traded : c.t}), el("dd", {cls: c.c && row[c.k] ? (row[c.k] > 0 ? "up" : "down") : null, text: c.f(row)}));
     add(dl);
   }
-  if (H.state === "ok") {
-    const n = H.dates.filter(d => d < S.date && H.src[d] === "rebuilt").length;
-    add(el("div", {cls: "note"}, n ? "Includes " + n + " rebuilt session" + (n === 1 ? "" : "s") + " (market caps and the stock list as of the backfill). " : "",
-      "PSE EDGE prices: a stock dividend can show as a fall."));
-  }
+  const nreb = H.state === "ok" ? H.dates.filter(d => d < S.date && H.src[d] === "rebuilt").length : 0;
+  if (nreb) add(el("div", {cls: "note", text: "Includes " + nreb + " rebuilt session" + (nreb === 1 ? "" : "s") + " (market caps and the stock list as of the backfill)."}));
   if (had) $("spx").focus();
 }
 // The last 60 sessions: blocks of 30, an S line over an L line; one slider control
@@ -1428,7 +1636,7 @@ function init() {
     days.hidden = !open; DB.setAttribute("aria-expanded", String(open)); days.textContent = "";
     if (!open) return;
     for (const x of dayList(S.index, latestDate())) days.append(el("button", {type: "button", role: "menuitem", "aria-current": x.date === S.date ? "true" : null,
-      text: dayLabel(x.date) + (x.latest ? " (latest)" : x.prov ? " (provisional)" : ""), onclick: () => { setDays(false); DB.focus(); pickDay(x.date).then(() => scrollTo(0, 0)); }})); // the bar and summary in view
+      text: dayText(x, dateLabel), onclick: () => { setDays(false); DB.focus(); pickDay(x.date).then(() => scrollTo(0, 0)); }})); // the bar and summary in view
     (days.querySelector("[aria-current]") || days.firstChild).focus();
   };
   DB.addEventListener("click", () => setDays(days.hidden));
@@ -1480,6 +1688,7 @@ function init() {
     const f = [...$("sp").querySelectorAll("button,input,[tabindex='0'],a[href]")], i = f.indexOf(document.activeElement);
     if (e.shiftKey ? i <= 0 : i === f.length - 1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
   });
+  window.addEventListener("resize", chartChanged); // a phone turned: the chart takes the new width
   window.addEventListener("popstate", () => { const s = new URLSearchParams(location.search).get("s"); if (!s) closePanel(true); else if (!P) openPanel(s, null, false); });
   document.addEventListener("keydown", e => {
     if (P) { if (e.key === "Escape") { e.preventDefault(); closePanel(); } return; }

@@ -1,4 +1,5 @@
-// Parity check: the browser's filter logic must match pse_screener.evaluate exactly.
+// Parity check: the browser's filter logic must match pse_screener.evaluate exactly, and (section 7) the price chart's
+// 50/200-day averages and last close must match the screener's sma50, sma200 and close.
 // The fixture and results live in the PRIVATE pse-screener repository, so this runs locally:
 //   node tests/parity.mjs [path/to/pse-screener] [results.csv ...] [history.csv]
 // It checks every case in tests/fixtures/filter_cases.json, then (for each CSV given) that the
@@ -125,6 +126,38 @@ if (csvs.length && existsSync(histPath)) {
     console.log(`history: ${path} (${date}), ${syms.size} kept rows compared`);
   }
 } else console.log("history: no history file or results CSV given, skipped");
+
+// 7. The price chart (T-23 b15): results/closes.csv read by the page's own parser, averaged by its own avgLine.
+// Value: protects=the chart's 50/200-day lines end on the screener's own sma50/sma200 and its last point on the close;
+//   fails_when=the page's average on a stock's last bar (its last_date, so stale stocks count) differs from latest.csv by more
+//   than 1e-4 (numpy and JavaScript sums can differ in the last bit), its last close differs, or the file's stamp is not the
+//   latest index entry's closes_sha256; stocks left out or with a fetch error are skipped; prints symbols and counts only;
+//   no_claim=the drawing, the states and the loader (tests/chart.mjs, tests/key.mjs, /qa).
+{ const cp = join(repo, "results", "closes.csv"), latest = csvs.find(p => /latest\.csv$/.test(p));
+  if (!existsSync(cp) || !latest) console.log("closes: no results/closes.csv or no latest.csv given, skipped");
+  else {
+    const C = new Function(html.slice(html.indexOf("/* CHART-START"), html.indexOf("/* CHART-END */")) + "; return {parseCloses, stampOf, avgLine};")();
+    const text = readFileSync(cp, "utf8"), {dates, by} = C.parseCloses(text), rows = parseCSV(readFileSync(latest, "utf8"));
+    const ix = JSON.parse(readFileSync(join(repo, "results", "index.json"), "utf8")), day = (rows.find(r => r.data_date) || {}).data_date;
+    const e = ix.find(x => x && x.date === day);
+    if (!e || e.closes_sha256 !== await C.stampOf(text)) fail(`closes: the file's stamp is not ${day}'s closes_sha256 in index.json`);
+    const near = (a, b) => a === null || a === undefined ? b === null || b === undefined : typeof b === "number" && Math.abs(a - b) <= 1e-4;
+    let n = 0, skipped = 0;
+    for (const r of rows) {
+      const v = by.get(r.symbol);
+      if (r.fetch_error || !v) { skipped++; continue; }
+      const end = r.last_date || r.data_date; let i = dates.length - 1;
+      while (i >= 0 && (dates[i] > end || v[i] === null)) i--;
+      if (i < 0) { fail(`closes ${r.symbol}: no close on or before its last day`); continue; }
+      const a50 = C.avgLine(v, 50)[i], a200 = C.avgLine(v, 200)[i];
+      if (!near(a50, r.sma50)) fail(`closes ${r.symbol}: the 50-day average differs from sma50`);
+      if (!near(a200, r.sma200)) fail(`closes ${r.symbol}: the 200-day average differs from sma200`);
+      if (Math.abs(v[i] - r.close) > 1e-9) fail(`closes ${r.symbol}: the last close differs from close`);
+      n++;
+    }
+    console.log(`closes: ${n} stocks compared, ${skipped} skipped (left out or a fetch error)`);
+  }
+}
 
 console.log(bad ? `${bad} mismatch(es)` : "parity OK");
 process.exit(bad ? 1 : 0);

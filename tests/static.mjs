@@ -15,6 +15,7 @@
 //   PNG-CHUNKS a PNG with other chunks or extra bytes   WIREFRAME   docs/wireframe.png changed (pinned by sha256)
 //   RESULTS-SHAPED results CSV text                     TOKEN       a GitHub token shape
 //   ROWS       a stock row anywhere in a line           DEMO-ROWS   tests/demo.mjs: CSV-looking lines, symbols, numbers by DEMO
+//   CLOSES     a closes.csv row anywhere in a line: a symbol, then 8+ cells in a row each a number or blank, 3+ numbers
 //   KEY-USE    the key used as a value, stored or sent outside its places, or a navigation call (app.js)
 //   DEMO-WRITE tests/demo.mjs writes a file             DEMO-READ   tests/demo.mjs reads other than its four files
 //   DEMO-LISTEN tests/demo.mjs listens beyond 127.0.0.1 PAGE-DEMO   index.html or app.js: "demo", serviceWorker, caches.
@@ -40,7 +41,7 @@ const WIREFRAME_SHA256 = "f48b46465d5982f255f067c8297fba7ae11ba22efb522f36f40a00
 const MANIFEST = {name: "PSE Screener", short_name: "PSE Screener", start_url: "./", scope: "./", display: "standalone",
   background_color: "#16191f", theme_color: "#16191f", icons: [{src: "icon.png", sizes: "512x512", type: "image/png", purpose: "any maskable"}]};
 const PNG_SIG = "89504e470d0a1a0a", PNG_OK = new Set(["IHDR", "PLTE", "IDAT", "IEND", "sRGB", "gAMA", "pHYs"]);
-const RESULTS = /^symbol,name,data_date,|pass_strict,pass_loose/m, TOKEN = /github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}/;
+const RESULTS = /^symbol,name,data_date,|pass_strict,pass_loose|^symbol,\d{4}-\d{2}-\d{2},/m, TOKEN = /github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}/;
 const ROW_START = /^\s*["']?[A-Z][A-Z0-9]{1,4}["']?,/;
 // A row anywhere in a line (plan § 4.1): cells split on , tab ; |, each cut to its last piece, so "close":12.5 gives 12.5
 const SYM = /^[A-Z][A-Z0-9]{0,4}$/, ISO = /^\d{4}-\d{2}-\d{2}$/, NUM = /^-?\d+(\.\d+)?(e[+-]?\d+)?$/i;
@@ -53,6 +54,20 @@ export function rowAt(l) {
   const toks = l.split(/[\s,;|]+/).map(t => t.split(/["'`=:()[\]{}]+/).filter(Boolean).pop() || "").filter(Boolean); // space-separated rows (3b)
   return toks.some((t, i) => (/^[A-Z][A-Z0-9]{1,4}$/.test(t) || i === 0 && SYM.test(t)) && !MADE_UP.test(t) && nearRow(toks, i, 6, 12));
 }
+// A results/closes.csv row anywhere in a line (T-23 plan § 6.2 D2): a symbol-shaped cell (not made up), then an unbroken
+// run of 8 or more cells that are each a number or blank, the whole run counted (a new or suspended stock's row starts
+// with a long run of blanks), at least 3 of them numbers. A closes row has no date, so ROWS' rule 2 never sees it.
+export function closesAt(l) {
+  const cells = cellsOf(l);
+  for (let i = 0; i < cells.length; i++) {
+    if (!SYM.test(cells[i]) || MADE_UP.test(cells[i])) continue;
+    let j = i + 1, nums = 0;
+    for (; j < cells.length && (cells[j] === "" || cells[j] === "null" || NUM.test(cells[j])); j++) if (NUM.test(cells[j])) nums++;
+    if (j - i - 1 >= 8 && nums >= 3) return true;
+  }
+  return false;
+}
+const CLOSES_FIX = "if this is not price data, break the run of numbers; made-up symbols: DEMO…, ZZ…, SYN";
 const ROW_FIX = "if this is not price data, drop the date or move the numbers off the line; made-up symbols: DEMO…, ZZ…, SYN";
 const DEMO_OK = new Set(["GET", "POST", "PUT", "OK", "UTC", "PSE", "CSV", "PNG"]);
 const UNSAFE = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|srcdoc|setAttribute\(\s*["'`]on|javascript:|set(Timeout|Interval)\(\s*["'`]|\.src\s*=|createElement(NS)?\s*\([^)]*["'`]script["'`]|["'`]\s*script\s*["'`]|\bimport\s*\(|new\s+(Shared)?Worker\b|importScripts/i;
@@ -93,6 +108,7 @@ export function leaks(files) {
     if (path !== "tests/static.mjs") each(t, RESULTS, n => fail("RESULTS-SHAPED", path, n, "results-shaped data"));
     each(t, TOKEN, n => fail("TOKEN", path, n, "token-like string"));
     if (/\.md$/.test(path)) mdHtml(path, t, fail);
+    t.split("\n").forEach((l, i) => { if (closesAt(l)) fail("CLOSES", path, i + 1, "looks like a closing-price row (symbol, then numbers)", CLOSES_FIX); });
     if (path === "tests/demo.mjs") demoRows(t, fail);
     else t.split("\n").forEach((l, i) => {
       if (ROW_START.test(l)) fail("ROWS", path, i + 1, "line starts like a stock row (symbol, then a comma)", ROW_FIX);
@@ -125,7 +141,10 @@ export function textLeaks(text) {
   const {out, fail} = finder();
   each(text, RESULTS, n => fail("RESULTS-SHAPED", "message", n, "results-shaped data"));
   each(text, TOKEN, n => fail("TOKEN", "message", n, "token-like string"));
-  text.split("\n").forEach((l, i) => { if (ROW_START.test(l) || rowAt(l)) fail("ROWS", "message", i + 1, "looks like a price row"); });
+  text.split("\n").forEach((l, i) => {
+    if (ROW_START.test(l) || rowAt(l)) fail("ROWS", "message", i + 1, "looks like a price row");
+    if (closesAt(l)) fail("CLOSES", "message", i + 1, "looks like a closing-price row");
+  });
   return out;
 }
 
