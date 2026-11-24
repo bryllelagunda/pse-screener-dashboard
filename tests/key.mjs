@@ -106,7 +106,7 @@ function loadHarness(files, cache = null) {
   files = {...files}; // each harness its own copy: a test may replace a file mid-run
   const mem = new Map(cache ? [["cache", cache]] : []), asked = [], gates = [];
   const store = {get: (k, d) => mem.has(k) ? mem.get(k) : d, set: (k, v) => { mem.set(k, JSON.parse(JSON.stringify(v))); return true; }, del: k => mem.delete(k)};
-  let hold = false, drawn = 0; // drawn: chart redraws asked for; hold true: every request waits until release(); a file name: only that one waits
+  let hold = false, drawn = 0, onDraw = null; // drawn: chart redraws asked for; hold true: every request waits until release(); a file name: only that one waits
   const fetch = async (url, o) => {
     const f = String(url).replace(/^.*\/contents\//, ""); asked.push(f);
     const v = files[f]; // the file as it was when asked for (a run may replace it while the answer is on its way)
@@ -123,8 +123,8 @@ function loadHarness(files, cache = null) {
     "; return {loadRemote, refresh, forgetKey, pickDay, dropDay, onLatest, fileText, AuthError, setCompare, renderAll, saveCache, dgen: () => dgen, gen: () => gen," +
     " loadCloses, dropCloses, saveKey, CL: () => CL, latestRows, latestEntry, chartState, LATEST: () => LATEST};")(
     S, store, fetch, parseCSV, d => /^\d{4}-\d{2}-\d{2}$/.test(d), () => "", () => "", () => 0, () => "", () => {}, () => {}, () => {}, () => {},
-    x => x, {}, () => [], () => ({state: "ok"}), () => {}, "https://api.github.com/repos/made-up", () => { drawn++; });
-  return {S, mem, asked, L, files, drawn: () => drawn, hold: v => { hold = v; }, release: () => { while (gates.length) gates.shift()(); }};
+    x => x, {}, () => [], () => ({state: "ok"}), () => {}, "https://api.github.com/repos/made-up", () => { drawn++; if (onDraw) onDraw(); });
+  return {S, mem, asked, L, files, drawn: () => drawn, setDraw: f => { onDraw = f; }, hold: v => { hold = v; }, release: () => { while (gates.length) gates.shift()(); }};
 }
 const tick = () => new Promise(r => setTimeout(r, 0));
 const ok = (c, what) => eq(!!c, true, what);
@@ -238,7 +238,9 @@ const settle = async () => { for (let i = 0; i < 8; i++) await tick(); };
   await T.L.loadRemote(); for (let i = 0; i < 4; i++) { T.L.loadCloses(); await settle(); }
   eq([closesAsked(T), view(T).say], [3, "Prices are being updated: the chart comes back after the next run."], "b17: a file that stays behind reloads once, not in a loop");
   globalThis.$ = id => ({value: id === "keyin" ? "k-other" : id === "kdate" ? "2099-01-01" : "", focus() {}, textContent: ""});
-  T.L.saveKey(); eq([T.L.CL().state, T.L.CL().by === undefined], ["idle", true], "b17: saving a new key drops the old prices");
+  const keysSent = []; T.setDraw(() => { keysSent.push(T.S.key); });
+  T.L.saveKey(); eq([T.L.CL().by === undefined, keysSent], [true, ["k-other"]], "b17: saving a new key drops the old prices; the redraw sees only the new key");
+  T.setDraw(null);
   await T.L.loadCloses(); await settle(); T.L.forgetKey(); eq([T.L.CL().state, T.L.CL().by === undefined], ["idle", true], "b17: Forget key drops the prices");
   delete globalThis.$;
 }

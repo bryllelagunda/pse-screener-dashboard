@@ -425,7 +425,7 @@ function saveKey() {
   const k = $("keyin").value.trim(), d = $("kdate").value, err = validateExpiry(d);
   if (!k) { $("keyin").focus(); return; }
   if (err) { $("kerr").textContent = err; $("kdate").focus(); return; }
-  gen++; dropCloses(); S.key = k; store.set("key", k); store.set("keyExp", d); store.del("keyNag"); S.keyBarShown = false;
+  gen++; S.key = k; dropCloses(); store.set("key", k); store.set("keyExp", d); store.del("keyNag"); S.keyBarShown = false;
   $("keyin").value = ""; S.authErr = S.noAccess = false; H = {state: "loading"}; showKey(false); renderAll(); loadRemote();
 }
 function saveDate() {
@@ -434,7 +434,7 @@ function saveDate() {
   store.set("keyExp", d); store.del("keyNag"); showKey(false); renderBars();
 }
 function forgetKey() {
-  gen++; hgen++; dropCloses(); S.key = ""; store.del("key"); store.del("keyExp"); store.del("keyNag"); store.del("cache"); H = {state: "missing"}; S.htext = null;
+  gen++; hgen++; S.key = ""; dropCloses(); store.del("key"); store.del("keyExp"); store.del("keyNag"); store.del("cache"); H = {state: "missing"}; S.htext = null;
   Object.assign(S, {rows: null, date: null, meta: null, index: [], status: null, cmpRows: null, cmpDate: null, msg: null, keyBarShown: false,
     authErr: false, noAccess: false, refreshErr: null, parity: 0, fixtureBad: 0, updated: null, cached: false, loading: 0}); // a load still running can't clear it (T-29)
   showKey("key"); renderAll();
@@ -1234,7 +1234,7 @@ let pgen = 0, CL = {state: "idle"}; // pgen: like hgen; Forget key and a new key
 const latestEntry = () => (LATEST ? LATEST.meta : S.meta) || null;
 const entryKey = e => e ? JSON.stringify([e.date, e.final, e.finished_at]) : "none";
 const latestRows = () => LATEST ? LATEST.rows : S.rows;
-function dropCloses() { pgen++; CL = {state: "idle"}; }
+function dropCloses() { pgen++; CL = {state: "idle"}; chartChanged(); } // an open panel redraws: no key, or a load for the new one
 async function loadCloses(again) { // again: Try again after a failed load
   const k = entryKey(latestEntry());
   // a refusal retries once a refresh shows the key works (S.authErr cleared)
