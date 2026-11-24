@@ -40,6 +40,7 @@ const GOOD = file([["DEMOA", walk(10, 0.05)], ["DEMOB", walk(5, 0.01, [3, 4, 280
   refuse("a negative close", GOOD.replace(/,10\.00,/, ",-1,"));
   refuse("dates out of order", GOOD.replace(D[1] + "," + D[2], D[2] + "," + D[1]));
   refuse("a date that is not a day", GOOD.replace(D[5], "2025-02-30"));
+  refuse("a symbol with no letter", GOOD.replace("DEMOB", "1234"));
   refuse("a symbol twice", GOOD + "DEMOA," + walk(1, 0).join(",") + "\n");
   refuse("an empty line inside", GOOD.replace("\nDEMOB", "\n\nDEMOB"));
   refuse("an empty file", "");

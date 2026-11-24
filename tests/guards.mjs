@@ -212,7 +212,25 @@ for (const p of ["closes.csv", "results/closes.csv", "data/closes.csv"]) refuse(
   for (const [what, row] of shapes(ZZ).slice(1)) pass("b13: a made-up ZZ closes row mid-line (" + what + ")", {"README.md": add("README.md", "Made-up: " + row)}, "CLOSES");
   pass("b13: seven cells after a symbol is not a row", {"tests/x.mjs": B("const q = [Q, 1, 2, 3, 4, 5, 6, 7]\n")}, "CLOSES");
   n++; if (scan(real).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: the real tree has a CLOSES hit"); }
+  // Codex pass 2: sparse rows, every symbol shape the page's parser reads, headers anywhere in a line, and static.mjs itself
+  const sparse = k => [Q3].concat(Array(300).fill(""), nums(k)).join(",");
+  for (const k of [1, 2]) {
+    refuse("b13: a sparse closes row (" + k + " price) mid-line in README.md", "CLOSES", {"README.md": add("README.md", "note: " + sparse(k))}, sparse(k));
+    n++; if (!textLeaks("note " + sparse(k)).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a sparse closes row (" + k + " price) in a message passes"); }
+  }
+  pass("b13: a long run of blanks with no price is not a row", {"tests/x.mjs": B("// " + [Q3].concat(Array(40).fill("")).join(",") + "\n")}, "CLOSES");
+  for (const sym of [Q3 + "QQX", Q3 + ".B", "Q" + "2" + "B", Q3 + "-P"]) {
+    const row = [sym].concat(nums(9)).join(",");
+    refuse("b13: a closes row for symbol shape " + sym.length + " chars in README.md", "CLOSES", {"README.md": add("README.md", "x " + row)}, row);
+    n++; if (!textLeaks(row).some(e => e.code === "CLOSES")) { bad++; console.log("FAIL b13: a closes row for a " + sym.length + "-char symbol in a message passes"); }
+  }
+  pass("b13: a run of plain numbers with no symbol is not a row", {"tests/x.mjs": B("const k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];\n")}, "CLOSES");
   const HEAD = ["symbol", DATE, ["2026", "11", "23"].join("-")].join(",");
+  for (const [what, l] of [["after prose", "the header: " + HEAD], ["indented", "    " + HEAD], ["in a JS string", 'const h = "' + HEAD + '";'], ["quoted cells", ["symbol", DATE, DATE].map(c => '"' + c + '"').join(",")], ["tab-separated", ["symbol", DATE, DATE].join("\t")]]) {
+    refuse("b13: the closes header " + what + " in README.md", "RESULTS-SHAPED", {"README.md": add("README.md", l)}, l);
+    n++; if (!textLeaks(l).some(e => e.code === "RESULTS-SHAPED")) { bad++; console.log("FAIL b13: the closes header " + what + " in a message passes"); }
+  }
+  refuse("b13: the closes header inside tests/static.mjs itself", "RESULTS-SHAPED", {"tests/static.mjs": add("tests/static.mjs", "const x = `\n" + HEAD + "\n`;")}, HEAD);
   refuse("b13: the closes header in README.md", "RESULTS-SHAPED", {"README.md": add("README.md", HEAD)}, HEAD);
   n++; if (!textLeaks(HEAD).some(e => e.code === "RESULTS-SHAPED")) { bad++; console.log("FAIL b13: the closes header in a commit message passes"); }
 }
